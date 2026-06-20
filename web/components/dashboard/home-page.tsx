@@ -1,10 +1,14 @@
 'use client'
 
+import { useCallback } from 'react'
 import { Thermometer, Droplets, Zap, Play, Square } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { VoiceAssistant, type VoiceIntent } from '@/components/voice-assistant'
+import { executeVoiceIntent } from '@/lib/voice-commands'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
@@ -17,6 +21,20 @@ export function HomePage({ data, onUpdate }: HomePageProps) {
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
   const circumference = 2 * Math.PI * 45
   const strokeDashoffset = circumference - (velocidadPorcentaje / 100) * circumference
+
+  const handleVoiceCommand = useCallback((intent: VoiceIntent) => {
+    const message = executeVoiceIntent(intent, onUpdate, data)
+    if (message) {
+      if (intent.type === 'SYSTEM_STATUS') {
+        toast.info(message, { duration: 6000 })
+      } else {
+        toast.success(message)
+      }
+      return
+    }
+
+    toast.error('Comando no reconocido')
+  }, [data, onUpdate])
 
   return (
     <div className="space-y-6">
@@ -212,6 +230,8 @@ export function HomePage({ data, onUpdate }: HomePageProps) {
           </div>
         </CardContent>
       </Card>
+
+      <VoiceAssistant onCommand={handleVoiceCommand} lang="es-CO" />
     </div>
   )
 }
