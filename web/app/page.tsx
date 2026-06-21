@@ -1,20 +1,71 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { toast } from 'sonner'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { HomePage } from '@/components/dashboard/home-page'
 import { MonitoreoPage } from '@/components/dashboard/monitoreo-page'
 import { ConfiguracionesPage } from '@/components/dashboard/configuraciones-page'
 import { AlertasPage } from '@/components/dashboard/alertas-page'
 import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
+import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
+import { VoiceAssistant, type VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
+import { executeVoiceIntent, PAGE_LABELS } from '@/lib/voice-commands'
+import { speak } from '@/lib/speech-synthesis'
+import { fetchWeatherSummary } from '@/lib/weather'
 import { Loader2 } from 'lucide-react'
 
-type Page = 'home' | 'monitoreo' | 'configuraciones' | 'alertas' | 'datos-externos'
+const DEFAULT_WEATHER_CITY = 'Cali'
 
 export default function Dashboard() {
-  const [currentPage, setCurrentPage] = useState<Page>('home')
+  const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
+  const [voiceSectionVisible, setVoiceSectionVisible] = useState(false)
   const { data, loading, error, updateData, isDemo, lastHeartbeatAt } = useAVCData()
+
+  const handleVoiceSectionVisibleChange = useCallback((visible: boolean) => {
+    setVoiceSectionVisible(visible)
+  }, [])
+
+  const handleVoiceCommand = useCallback(async (intent: VoiceIntent) => {
+    if (intent.type === 'NAVIGATE') {
+      setCurrentPage(intent.page)
+      const label = PAGE_LABELS[intent.page] ?? intent.page
+      const message = `Abriendo ${label}`
+      toast.success(message)
+      speak(message)
+      return
+    }
+
+    if (intent.type === 'WEATHER') {
+      const city = intent.city ?? DEFAULT_WEATHER_CITY
+      toast.loading(`Consultando clima en ${city}...`, { id: 'weather-voice' })
+      try {
+        const message = await fetchWeatherSummary(city)
+        toast.success(message, { id: 'weather-voice', duration: 8000 })
+        speak(message)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No pude consultar el clima'
+        toast.error(message, { id: 'weather-voice' })
+        speak(message)
+      }
+      return
+    }
+
+    const message = executeVoiceIntent(intent, updateData, data)
+    if (message) {
+      if (intent.type === 'SYSTEM_STATUS' || intent.type === 'SETPOINT_QUERY') {
+        toast.info(message, { duration: 6000 })
+      } else {
+        toast.success(message)
+      }
+      speak(message)
+      return
+    }
+
+    toast.error('Comando no reconocido')
+    speak('Comando no reconocido')
+  }, [data, updateData])
 
   if (loading) {
     return (
@@ -47,7 +98,14 @@ export default function Dashboard() {
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
-        return <HomePage data={data} onUpdate={updateData} />
+        return (
+          <HomePage
+            data={data}
+            onUpdate={updateData}
+            onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
+            onVoiceCommand={handleVoiceCommand}
+          />
+        )
       case 'monitoreo':
         return <MonitoreoPage data={data} onUpdate={updateData} />
       case 'configuraciones':
@@ -57,13 +115,19 @@ export default function Dashboard() {
       case 'datos-externos':
         return <DatosExternosPage />
       default:
-        return <HomePage data={data} onUpdate={updateData} />
+        return (
+          <HomePage
+            data={data}
+            onUpdate={updateData}
+            onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
+            onVoiceCommand={handleVoiceCommand}
+          />
+        )
     }
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header Principal */}
       <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 sticky top-0 z-40">
         <div className="flex items-center justify-between">
           <div>
@@ -89,21 +153,28 @@ export default function Dashboard() {
         onNavigate={setCurrentPage}
         wifiConnected={data.wifi.conectado}
       />
-      
-      {/* Main Content */}
+
       <main className="lg:ml-64 flex-1 pb-20 lg:pb-0">
         <section className="p-4 md:p-6 lg:p-8">
           {renderPage()}
         </section>
       </main>
 
-      {/* Footer Global */}
       <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto">
         <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>AVC-01 - Adaptive Ventilation Controller | Proyecto de Grado 2024</p>
           <p>Desarrollado con Next.js + Firebase Realtime Database</p>
         </div>
       </footer>
+
+      <VoiceFloatingAssistant
+        currentPage={currentPage}
+        voiceSectionVisible={voiceSectionVisible}
+      >
+        {!(currentPage === 'home' && voiceSectionVisible) && (
+          <VoiceAssistant onCommand={handleVoiceCommand} lang="es-CO" embedded />
+        )}
+      </VoiceFloatingAssistant>
     </div>
   )
 }

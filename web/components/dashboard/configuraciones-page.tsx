@@ -1,8 +1,11 @@
 'use client'
 
-import { Droplets, Thermometer, Zap, PersonStanding } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Droplets, Thermometer, Zap, PersonStanding, Mic } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { FAB_HIDDEN_CHANGE_EVENT, isFabHidden, setFabHidden } from '@/lib/fab-storage'
 import type { AVCData } from '@/hooks/use-avc-data'
 
 interface ConfiguracionesPageProps {
@@ -42,6 +45,28 @@ const configItems = [
 ]
 
 export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps) {
+  const [fabVisible, setFabVisible] = useState(true)
+
+  useEffect(() => {
+    setFabVisible(!isFabHidden())
+
+    function syncFabVisibility() {
+      setFabVisible(!isFabHidden())
+    }
+
+    window.addEventListener('storage', syncFabVisibility)
+    window.addEventListener(FAB_HIDDEN_CHANGE_EVENT, syncFabVisibility)
+    return () => {
+      window.removeEventListener('storage', syncFabVisibility)
+      window.removeEventListener(FAB_HIDDEN_CHANGE_EVENT, syncFabVisibility)
+    }
+  }, [])
+
+  function handleFabToggle(checked: boolean) {
+    setFabVisible(checked)
+    setFabHidden(!checked)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -73,6 +98,36 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="text-lg text-foreground flex items-center gap-2">
+            <Mic className="w-5 h-5" />
+            Asistente de voz
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-secondary/50 border border-border">
+            <div className="space-y-0.5">
+              <Label htmlFor="fab-switch" className="text-sm font-medium text-foreground">
+                Mostrar asistente flotante
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {fabVisible
+                  ? 'El boton flotante de voz es visible en todas las pantallas.'
+                  : 'El boton flotante esta oculto. Activalo para volver a usarlo.'}
+              </p>
+            </div>
+            <Switch
+              id="fab-switch"
+              checked={fabVisible}
+              onCheckedChange={handleFabToggle}
+              className="data-[state=checked]:bg-green-500"
+              aria-label="Mostrar asistente flotante"
+            />
+          </div>
         </CardContent>
       </Card>
 

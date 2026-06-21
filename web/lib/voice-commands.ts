@@ -36,9 +36,21 @@ export function executeVoiceIntent(
       onUpdate('setpoint', value)
       return `Setpoint ajustado a ${value}°C`
     }
+    case 'SETPOINT_QUERY':
+      return `Setpoint actual: ${data.setpoint}°C`
     case 'SYSTEM_STATUS':
       return buildSystemStatusMessage(data)
+    case 'NAVIGATE':
+    case 'WEATHER':
     case 'UNKNOWN':
       return null
   }
+}
+
+export const PAGE_LABELS: Record<string, string> = {
+  home: 'Panel principal',
+  monitoreo: 'Monitoreo',
+  configuraciones: 'Configuraciones',
+  alertas: 'Alertas',
+  'datos-externos': 'Datos externos',
 }

@@ -5,6 +5,13 @@ import { Mic, MicOff, Loader2, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+export type DashboardPage =
+  | 'home'
+  | 'monitoreo'
+  | 'configuraciones'
+  | 'alertas'
+  | 'datos-externos'
+
 export type VoiceIntent =
   | { type: 'MOTOR_ON'; raw: string }
   | { type: 'MOTOR_OFF'; raw: string }
@@ -12,13 +19,17 @@ export type VoiceIntent =
   | { type: 'MODE_MANUAL'; raw: string }
   | { type: 'SETPOINT_UP'; value: number; raw: string }
   | { type: 'SETPOINT_DOWN'; value: number; raw: string }
+  | { type: 'SETPOINT_QUERY'; raw: string }
   | { type: 'SYSTEM_STATUS'; raw: string }
+  | { type: 'NAVIGATE'; page: DashboardPage; raw: string }
+  | { type: 'WEATHER'; city?: string; raw: string }
   | { type: 'UNKNOWN'; raw: string }
 
 interface VoiceAssistantProps {
   onCommand: (intent: VoiceIntent) => void
   lang?: 'es-CO' | 'es-ES'
   className?: string
+  embedded?: boolean
 }
 
 type Status = 'idle' | 'listening' | 'processing' | 'unsupported' | 'error'
@@ -50,8 +61,39 @@ function extractNumber(text: string): number | null {
   return null
 }
 
+function extractCity(text: string): string | undefined {
+  const patterns = [
+    /(?:clima|tiempo|pronostico|temperatura)\s+(?:en|de|para)\s+([a-z\s]+)/i,
+    /(?:en|de|para)\s+([a-z\s]{3,})$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    const city = match?.[1]?.trim()
+    if (city && !/(motor|sistema|modulo|setpoint|exterior)/.test(city)) {
+      return city
+    }
+  }
+
+  return undefined
+}
+
 function parseIntent(transcript: string): VoiceIntent {
   const t = normalize(transcript)
+
+  if (/(ir a|abrir|ve a|mostrar|ir al|panel|inicio|pagina)/.test(t)) {
+    if (/monitoreo/.test(t)) return { type: 'NAVIGATE', page: 'monitoreo', raw: transcript }
+    if (/alerta/.test(t)) return { type: 'NAVIGATE', page: 'alertas', raw: transcript }
+    if (/configuracion/.test(t)) return { type: 'NAVIGATE', page: 'configuraciones', raw: transcript }
+    if (/datos externos|clima exterior|externos/.test(t)) {
+      return { type: 'NAVIGATE', page: 'datos-externos', raw: transcript }
+    }
+    if (/inicio|principal|home|panel/.test(t)) return { type: 'NAVIGATE', page: 'home', raw: transcript }
+  }
+
+  if (/(clima|tiempo|pronostico|temperatura exterior)/.test(t)) {
+    return { type: 'WEATHER', city: extractCity(transcript), raw: transcript }
+  }
 
   if (/(enciende|encender|prende|prender|arranca|activa|inicia)/.test(t) && /(motor|ventilador|sistema|modulo)/.test(t)) {
     return { type: 'MOTOR_ON', raw: transcript }
@@ -79,6 +121,10 @@ function parseIntent(transcript: string): VoiceIntent {
     if (value !== null) return { type: 'SETPOINT_DOWN', value, raw: transcript }
   }
 
+  if (/(cual|que).*(setpoint|punto)|setpoint actual|valor del setpoint/.test(t)) {
+    return { type: 'SETPOINT_QUERY', raw: transcript }
+  }
+
   if (/(estado|status|como esta|reporte|informe)/.test(t) && /(sistema|modulo|motor|todo)/.test(t)) {
     return { type: 'SYSTEM_STATUS', raw: transcript }
   }
@@ -98,12 +144,15 @@ function intentLabel(intent: VoiceIntent): string {
     case 'MODE_MANUAL': return 'Modo manual'
     case 'SETPOINT_UP': return `Subir setpoint a ${intent.value}°C`
     case 'SETPOINT_DOWN': return `Bajar setpoint a ${intent.value}°C`
+    case 'SETPOINT_QUERY': return 'Consultar setpoint'
     case 'SYSTEM_STATUS': return 'Estado del sistema'
+    case 'NAVIGATE': return `Ir a ${intent.page}`
+    case 'WEATHER': return intent.city ? `Clima en ${intent.city}` : 'Clima exterior'
     case 'UNKNOWN': return 'Comando no reconocido'
   }
 }
 
-export function VoiceAssistant({ onCommand, lang = 'es-CO', className }: VoiceAssistantProps) {
+export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded = false }: VoiceAssistantProps) {
   const [status, setStatus] = useState<Status>('idle')
   const [transcript, setTranscript] = useState('')
   const [lastIntent, setLastIntent] = useState<VoiceIntent | null>(null)
@@ -156,9 +205,7 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className }: VoiceAs
         setStatus('processing')
         const intent = parseIntent(final)
         setLastIntent(intent)
-        if (intent.type !== 'UNKNOWN') {
-          onCommandRef.current(intent)
-        }
+        onCommandRef.current(intent)
         window.setTimeout(() => setStatus('idle'), 600)
       }
     }
@@ -209,21 +256,24 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className }: VoiceAs
   return (
     <div
       className={cn(
-        'flex flex-col gap-4 rounded-xl border border-border bg-card p-5 text-card-foreground',
+        'flex flex-col gap-4 text-card-foreground',
+        embedded ? 'p-0' : 'rounded-xl border border-border bg-card p-5',
         className
       )}
       role="region"
       aria-label="Asistente de voz"
     >
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
-          <Volume2 className="h-5 w-5 text-primary" />
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
+            <Volume2 className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold leading-tight">Asistente de Voz</h3>
+            <p className="text-xs text-muted-foreground">Idioma: {lang}</p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-semibold leading-tight">Asistente de Voz</h3>
-          <p className="text-xs text-muted-foreground">Idioma: {lang}</p>
-        </div>
-      </div>
+      )}
 
       <Button
         onClick={handleToggle}
@@ -299,18 +349,20 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className }: VoiceAs
         </div>
       )}
 
-      <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer select-none font-medium">
-          Comandos disponibles
-        </summary>
-        <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>&quot;Enciende el motor&quot; / &quot;Apaga el motor&quot;</li>
-          <li>&quot;Modo automatico&quot; / &quot;Modo manual&quot;</li>
-          <li>&quot;Sube el setpoint a 24 grados&quot;</li>
-          <li>&quot;Baja el setpoint a 20 grados&quot;</li>
-          <li>&quot;Estado del sistema&quot;</li>
-        </ul>
-      </details>
+      {!embedded && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none font-medium">
+            Comandos disponibles
+          </summary>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            <li>&quot;Enciende el motor&quot; / &quot;Apaga el motor&quot;</li>
+            <li>&quot;Modo automatico&quot; / &quot;Modo manual&quot;</li>
+            <li>&quot;Estado del sistema&quot; / &quot;Cual es el setpoint&quot;</li>
+            <li>&quot;Clima en Cali&quot; / &quot;Que tiempo hace&quot;</li>
+            <li>&quot;Ir a monitoreo&quot; / &quot;Abrir alertas&quot;</li>
+          </ul>
+        </details>
+      )}
     </div>
   )
 }

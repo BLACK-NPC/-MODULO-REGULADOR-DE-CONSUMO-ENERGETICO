@@ -1,40 +1,49 @@
 'use client'
 
-import { useCallback } from 'react'
-import { Thermometer, Droplets, Zap, Play, Square } from 'lucide-react'
-import { toast } from 'sonner'
+import { useEffect, useRef } from 'react'
+import { Thermometer, Droplets, Zap, Play, Square, Mic } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { VoiceAssistant, type VoiceIntent } from '@/components/voice-assistant'
-import { executeVoiceIntent } from '@/lib/voice-commands'
+import { VoiceAssistant } from '@/components/voice-assistant'
+import type { VoiceIntent } from '@/components/voice-assistant'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
 interface HomePageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => void
+  onVoiceSectionVisibleChange?: (visible: boolean) => void
+  onVoiceCommand?: (intent: VoiceIntent) => void | Promise<void>
 }
 
-export function HomePage({ data, onUpdate }: HomePageProps) {
+export function HomePage({
+  data,
+  onUpdate,
+  onVoiceSectionVisibleChange,
+  onVoiceCommand,
+}: HomePageProps) {
+  const voiceSectionRef = useRef<HTMLElement>(null)
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
   const circumference = 2 * Math.PI * 45
   const strokeDashoffset = circumference - (velocidadPorcentaje / 100) * circumference
 
-  const handleVoiceCommand = useCallback((intent: VoiceIntent) => {
-    const message = executeVoiceIntent(intent, onUpdate, data)
-    if (message) {
-      if (intent.type === 'SYSTEM_STATUS') {
-        toast.info(message, { duration: 6000 })
-      } else {
-        toast.success(message)
-      }
-      return
-    }
+  useEffect(() => {
+    if (!onVoiceSectionVisibleChange) return
+    const el = voiceSectionRef.current
+    if (!el) return
 
-    toast.error('Comando no reconocido')
-  }, [data, onUpdate])
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        onVoiceSectionVisibleChange(entry.isIntersecting)
+      },
+      { threshold: 0.3 }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onVoiceSectionVisibleChange])
 
   return (
     <div className="space-y-6">
@@ -231,7 +240,30 @@ export function HomePage({ data, onUpdate }: HomePageProps) {
         </CardContent>
       </Card>
 
-      <VoiceAssistant onCommand={handleVoiceCommand} lang="es-CO" />
+      <section
+        id="voice-assistant-section"
+        ref={voiceSectionRef}
+        aria-label="Asistente de voz"
+      >
+        <Card className="bg-card border-emerald-500/30">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <Mic className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Asistente de voz</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Controla el sistema por voz desde aqui. En otras pantallas usa el boton flotante.
+                </p>
+              </div>
+            </div>
+            {onVoiceCommand && (
+              <VoiceAssistant onCommand={onVoiceCommand} lang="es-CO" />
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   )
 }
