@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Mic, Command, ChevronRight, CheckCircle2, Loader2, Waves } from 'lucide-react'
+import { Mic, Command, ChevronRight, CheckCircle2, Loader2, Waves, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   FAB_HIDDEN_CHANGE_EVENT,
@@ -33,6 +33,7 @@ const FAB_SIZE = 56
 const MENU_WIDTH = 280
 const GAP = 10
 const MARGIN = 16
+const BUBBLE_AUTO_HIDE_MS = 5000
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -55,6 +56,21 @@ function loadFabPosition(): { x: number; y: number } | null {
     /* ignore */
   }
   return null
+}
+
+function menuOffset(menuOpen: boolean) {
+  return menuOpen ? MENU_WIDTH + GAP : 0
+}
+
+function clampFabPosition(
+  pos: { x: number; y: number },
+  menuOpen: boolean
+): { x: number; y: number } {
+  const offset = menuOffset(menuOpen)
+  return {
+    x: clamp(pos.x, MARGIN + offset, window.innerWidth - FAB_SIZE - MARGIN),
+    y: clamp(pos.y, MARGIN, window.innerHeight - FAB_SIZE - MARGIN),
+  }
 }
 
 function WaveformBars() {
@@ -84,12 +100,18 @@ export function VoiceFloatingAssistant({
     if (typeof window === 'undefined') return { x: 0, y: 0 }
     return loadFabPosition() ?? getDefaultFabPosition()
   })
-  const [showReadyHint, setShowReadyHint] = useState(false)
+  const [bubbleVisible, setBubbleVisible] = useState(false)
 
+  const groupRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const startPointer = useRef({ x: 0, y: 0 })
   const startFabPos = useRef({ x: 0, y: 0 })
   const totalMove = useRef(0)
+  const fabButtonRef = useRef<HTMLButtonElement>(null)
+
+  const handleSessionEnd = useCallback(() => {
+    onCommandsMenuOpenChange(false)
+  }, [onCommandsMenuOpenChange])
 
   const {
     status,
@@ -97,9 +119,10 @@ export function VoiceFloatingAssistant({
     responseText,
     errorMsg,
     startListening,
+    clearResponse,
     isListening,
     isProcessing,
-  } = useVoiceRecognition({ lang, onCommand })
+  } = useVoiceRecognition({ lang, onCommand, onSessionEnd: handleSessionEnd })
 
   useEffect(() => {
     setHidden(isFabHidden())
@@ -115,16 +138,38 @@ export function VoiceFloatingAssistant({
   }, [])
 
   useEffect(() => {
-    if (responseText && status === 'idle') {
-      setShowReadyHint(true)
-      const timer = window.setTimeout(() => setShowReadyHint(false), 5000)
+    clearResponse()
+    setBubbleVisible(false)
+  }, [currentPage, clearResponse])
+
+  useEffect(() => {
+    if (isListening || isProcessing || transcript) {
+      setBubbleVisible(true)
+    }
+  }, [isListening, isProcessing, transcript])
+
+  useEffect(() => {
+    if (responseText || errorMsg) {
+      setBubbleVisible(true)
+      const timer = window.setTimeout(() => {
+        setBubbleVisible(false)
+      }, BUBBLE_AUTO_HIDE_MS)
       return () => window.clearTimeout(timer)
     }
-  }, [responseText, status])
+  }, [responseText, errorMsg])
+
+  useEffect(() => {
+    function dismissBubble(e: PointerEvent) {
+      if (groupRef.current?.contains(e.target as Node)) return
+      setBubbleVisible(false)
+    }
+    document.addEventListener('pointerdown', dismissBubble)
+    return () => document.removeEventListener('pointerdown', dismissBubble)
+  }, [])
 
   const shouldHide = hidden || (voiceSectionVisible && currentPage === 'home')
 
-  const groupX = fabPos.x - (commandsMenuOpen ? MENU_WIDTH + GAP : 0)
+  const groupX = fabPos.x - menuOffset(commandsMenuOpen)
   const groupY = fabPos.y
 
   useEffect(() => {
@@ -132,23 +177,23 @@ export function VoiceFloatingAssistant({
   }, [fabPos])
 
   useEffect(() => {
+    setFabPos((p) => clampFabPosition(p, commandsMenuOpen))
+  }, [commandsMenuOpen])
+
+  useEffect(() => {
     function onResize() {
-      setFabPos((p) => ({
-        x: clamp(
-          p.x,
-          MARGIN + (commandsMenuOpen ? MENU_WIDTH + GAP : 0),
-          window.innerWidth - FAB_SIZE - MARGIN
-        ),
-        y: clamp(p.y, MARGIN, window.innerHeight - FAB_SIZE - MARGIN),
-      }))
+      setFabPos((p) => clampFabPosition(p, commandsMenuOpen))
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [commandsMenuOpen])
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLButtonElement>) => {
+  const onGroupPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return
+      const target = e.target as HTMLElement
+      if (target.closest('[data-no-drag]')) return
+
       e.currentTarget.setPointerCapture(e.pointerId)
       dragging.current = true
       totalMove.current = 0
@@ -158,39 +203,42 @@ export function VoiceFloatingAssistant({
     [fabPos]
   )
 
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLButtonElement>) => {
+  const onGroupPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
       if (!dragging.current) return
       const dx = e.clientX - startPointer.current.x
       const dy = e.clientY - startPointer.current.y
       totalMove.current = Math.sqrt(dx * dx + dy * dy)
-      setFabPos({
-        x: clamp(
-          startFabPos.current.x + dx,
-          MARGIN + (commandsMenuOpen ? MENU_WIDTH + GAP : 0),
-          window.innerWidth - FAB_SIZE - MARGIN
-        ),
-        y: clamp(
-          startFabPos.current.y + dy,
-          MARGIN,
-          window.innerHeight - FAB_SIZE - MARGIN
-        ),
-      })
+      setFabPos(
+        clampFabPosition(
+          {
+            x: startFabPos.current.x + dx,
+            y: startFabPos.current.y + dy,
+          },
+          commandsMenuOpen
+        )
+      )
     },
     [commandsMenuOpen]
   )
 
-  const onPointerUp = useCallback(() => {
-    if (!dragging.current) return
-    dragging.current = false
-    if (totalMove.current < DRAG_THRESHOLD) {
-      startListening()
-    }
-  }, [startListening])
+  const onGroupPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging.current) return
+      dragging.current = false
+
+      const tappedFab = fabButtonRef.current?.contains(e.target as Node)
+      if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
+        startListening()
+      }
+    },
+    [startListening]
+  )
 
   const showBubble =
     !shouldHide &&
-    (isListening || isProcessing || !!transcript || !!responseText || !!errorMsg || showReadyHint)
+    bubbleVisible &&
+    (isListening || isProcessing || !!transcript || !!responseText || !!errorMsg)
 
   if (shouldHide) return null
 
@@ -232,38 +280,39 @@ export function VoiceFloatingAssistant({
             {!isListening && !isProcessing && errorMsg && (
               <p className="text-sm text-red-400">{errorMsg}</p>
             )}
-
-            {showReadyHint && !isListening && !isProcessing && (
-              <div className="flex items-center gap-2 pt-1 border-t border-white/10">
-                <Mic className="h-3.5 w-3.5 text-emerald-400/70" />
-                <p className="text-xs text-white/50">En que mas puedo ayudarte?</p>
-              </div>
-            )}
           </div>
         </div>
       )}
 
       <div
-        className="fixed z-50 flex items-end gap-2.5"
+        ref={groupRef}
+        className="fixed z-50 flex items-end gap-2.5 cursor-grab active:cursor-grabbing"
         style={{
           left: groupX,
           top: groupY,
           touchAction: 'none',
           userSelect: 'none',
         }}
+        onPointerDown={onGroupPointerDown}
+        onPointerMove={onGroupPointerMove}
+        onPointerUp={onGroupPointerUp}
       >
         {commandsMenuOpen && (
           <div
             className="rounded-2xl border border-white/10 bg-gray-950/95 backdrop-blur-md shadow-2xl overflow-hidden animate-in slide-in-from-right-4 duration-200"
             style={{ width: MENU_WIDTH, maxHeight: 320 }}
           >
-            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2 cursor-grab">
+              <GripVertical className="h-4 w-4 text-white/30 shrink-0" />
               <Command className="h-4 w-4 text-emerald-400" />
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/50">
+              <p className="text-xs font-semibold uppercase tracking-widest text-white/50 flex-1">
                 Comandos disponibles
               </p>
             </div>
-            <div className="overflow-y-auto max-h-[260px] p-2 space-y-3">
+            <div
+              className="overflow-y-auto max-h-[260px] p-2 space-y-3"
+              data-no-drag
+            >
               {VOICE_COMMAND_GROUPS.map((group) => (
                 <div key={group.label} className="space-y-1">
                   <p className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider px-2">
@@ -288,6 +337,7 @@ export function VoiceFloatingAssistant({
             </div>
             <button
               type="button"
+              data-no-drag
               onClick={() => onCommandsMenuOpenChange(false)}
               className="w-full py-2 text-[10px] text-white/30 hover:text-white/50 border-t border-white/10 transition-colors"
             >
@@ -297,11 +347,9 @@ export function VoiceFloatingAssistant({
         )}
 
         <button
+          ref={fabButtonRef}
           type="button"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          aria-label={isListening ? 'Escuchando' : 'Activar asistente de voz'}
+          aria-label={isListening ? 'Detener asistente de voz' : 'Activar asistente de voz'}
           style={{
             width: FAB_SIZE,
             height: FAB_SIZE,

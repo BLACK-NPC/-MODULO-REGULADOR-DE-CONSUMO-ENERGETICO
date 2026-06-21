@@ -10,14 +10,18 @@ export type VoiceRecognitionStatus =
   | 'unsupported'
   | 'error'
 
+const SILENCE_TIMEOUT_MS = 5000
+
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
   onCommand: (intent: VoiceIntent) => Promise<string | null> | string | null
+  onSessionEnd?: () => void
 }
 
 export function useVoiceRecognition({
   lang = 'es-CO',
   onCommand,
+  onSessionEnd,
 }: UseVoiceRecognitionOptions) {
   const [status, setStatus] = useState<VoiceRecognitionStatus>('idle')
   const [transcript, setTranscript] = useState('')
@@ -26,10 +30,59 @@ export function useVoiceRecognition({
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const onCommandRef = useRef(onCommand)
+  const onSessionEndRef = useRef(onSessionEnd)
+  const sessionActiveRef = useRef(false)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const processingRef = useRef(false)
 
   useEffect(() => {
     onCommandRef.current = onCommand
   }, [onCommand])
+
+  useEffect(() => {
+    onSessionEndRef.current = onSessionEnd
+  }, [onSessionEnd])
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+  }, [])
+
+  const stopSession = useCallback(() => {
+    sessionActiveRef.current = false
+    processingRef.current = false
+    clearSilenceTimer()
+    recognitionRef.current?.stop()
+    setStatus('idle')
+    setTranscript('')
+    onSessionEndRef.current?.()
+  }, [clearSilenceTimer])
+
+  const scheduleSilenceTimeout = useCallback(() => {
+    clearSilenceTimer()
+    if (!sessionActiveRef.current) return
+
+    silenceTimerRef.current = setTimeout(() => {
+      if (sessionActiveRef.current && !processingRef.current) {
+        stopSession()
+      }
+    }, SILENCE_TIMEOUT_MS)
+  }, [clearSilenceTimer, stopSession])
+
+  const restartListening = useCallback(() => {
+    const recognition = recognitionRef.current
+    if (!recognition || !sessionActiveRef.current) return
+
+    try {
+      recognition.start()
+      setStatus('listening')
+    } catch {
+      /* already running */
+    }
+    scheduleSilenceTimeout()
+  }, [scheduleSilenceTimeout])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -44,18 +97,21 @@ export function useVoiceRecognition({
 
     const recognition = new SpeechRecognitionImpl()
     recognition.lang = lang
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
       setStatus('listening')
-      setTranscript('')
       setErrorMsg('')
-      setResponseText(null)
+      scheduleSilenceTimeout()
     }
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      if (!sessionActiveRef.current) return
+
+      scheduleSilenceTimeout()
+
       let interim = ''
       let final = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -68,64 +124,110 @@ export function useVoiceRecognition({
       }
       setTranscript(final || interim)
 
-      if (final) {
-        void (async () => {
-          setStatus('processing')
-          const intent = parseIntent(final)
-          const message = await onCommandRef.current(intent)
-          if (message) {
-            setResponseText(message)
-          } else if (intent.type === 'UNKNOWN') {
-            setResponseText('Comando no reconocido')
-          }
+      if (!final.trim()) return
+
+      void (async () => {
+        processingRef.current = true
+        setStatus('processing')
+        clearSilenceTimer()
+
+        const intent = parseIntent(final)
+        const message = await onCommandRef.current(intent)
+        if (message) {
+          setResponseText(message)
+        } else if (intent.type === 'UNKNOWN') {
+          setResponseText('Comando no reconocido')
+        }
+
+        processingRef.current = false
+
+        if (!sessionActiveRef.current) {
           setStatus('idle')
-        })()
-      }
+          return
+        }
+
+        setTranscript('')
+        restartListening()
+      })()
     }
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      if (event.error === 'no-speech') {
+        scheduleSilenceTimeout()
+        return
+      }
+
+      if (event.error === 'aborted') {
+        return
+      }
+
       setStatus('error')
+      sessionActiveRef.current = false
+      processingRef.current = false
+      clearSilenceTimer()
+
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setErrorMsg('Permiso de microfono denegado.')
-      } else if (event.error === 'no-speech') {
-        setErrorMsg('No se detecto voz. Intenta de nuevo.')
       } else {
         setErrorMsg(`Error de reconocimiento: ${event.error}`)
       }
     }
 
     recognition.onend = () => {
-      setStatus((prev) => (prev === 'listening' ? 'idle' : prev))
+      if (!sessionActiveRef.current) {
+        setStatus((prev) => (prev === 'listening' ? 'idle' : prev))
+        return
+      }
+
+      if (!processingRef.current) {
+        restartListening()
+      }
     }
 
     recognitionRef.current = recognition
 
     return () => {
+      sessionActiveRef.current = false
+      clearSilenceTimer()
       recognition.abort()
       recognitionRef.current = null
     }
-  }, [lang])
+  }, [lang, clearSilenceTimer, restartListening, scheduleSilenceTimeout])
 
   const startListening = useCallback(() => {
     const recognition = recognitionRef.current
-    if (!recognition || status === 'unsupported' || status === 'processing') return
+    if (!recognition || status === 'unsupported') return
 
-    if (status === 'listening') {
-      recognition.stop()
-      setStatus('idle')
+    if (sessionActiveRef.current) {
+      stopSession()
       return
     }
 
+    if (status === 'processing') return
+
+    sessionActiveRef.current = true
+    processingRef.current = false
+    setTranscript('')
+    setResponseText(null)
+    setErrorMsg('')
+
     try {
       recognition.start()
+      setStatus('listening')
+      scheduleSilenceTimeout()
     } catch {
       /* already active */
     }
-  }, [status])
+  }, [status, stopSession, scheduleSilenceTimeout])
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop()
-    setStatus('idle')
+    stopSession()
+  }, [stopSession])
+
+  const clearResponse = useCallback(() => {
+    setResponseText(null)
+    setErrorMsg('')
+    setTranscript('')
   }, [])
 
   return {
@@ -135,8 +237,10 @@ export function useVoiceRecognition({
     errorMsg,
     startListening,
     stopListening,
+    clearResponse,
     isListening: status === 'listening',
     isProcessing: status === 'processing',
+    isSessionActive: sessionActiveRef.current,
     isUnsupported: status === 'unsupported',
   }
 }
