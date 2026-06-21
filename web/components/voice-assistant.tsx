@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Loader2, Volume2 } from 'lucide-react'
+import { Mic, Loader2, Volume2, CheckCircle2, Waves } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useVoiceRecognition } from '@/hooks/use-voice-recognition'
 
 export type DashboardPage =
   | 'home'
@@ -23,16 +24,16 @@ export type VoiceIntent =
   | { type: 'SYSTEM_STATUS'; raw: string }
   | { type: 'NAVIGATE'; page: DashboardPage; raw: string }
   | { type: 'WEATHER'; city?: string; raw: string }
+  | { type: 'SHOW_COMMANDS'; raw: string }
+  | { type: 'HIDE_COMMANDS'; raw: string }
   | { type: 'UNKNOWN'; raw: string }
 
 interface VoiceAssistantProps {
-  onCommand: (intent: VoiceIntent) => void
+  onCommand: (intent: VoiceIntent) => Promise<string | null> | string | null
   lang?: 'es-CO' | 'es-ES'
   className?: string
   embedded?: boolean
 }
-
-type Status = 'idle' | 'listening' | 'processing' | 'unsupported' | 'error'
 
 function normalize(text: string): string {
   return text
@@ -70,7 +71,7 @@ function extractCity(text: string): string | undefined {
   for (const pattern of patterns) {
     const match = text.match(pattern)
     const city = match?.[1]?.trim()
-    if (city && !/(motor|sistema|modulo|setpoint|exterior)/.test(city)) {
+    if (city && !/(motor|sistema|modulo|setpoint|exterior|menu|comandos)/.test(city)) {
       return city
     }
   }
@@ -78,10 +79,22 @@ function extractCity(text: string): string | undefined {
   return undefined
 }
 
-function parseIntent(transcript: string): VoiceIntent {
+export function parseIntent(transcript: string): VoiceIntent {
   const t = normalize(transcript)
 
-  if (/(ir a|abrir|ve a|mostrar|ir al|panel|inicio|pagina)/.test(t)) {
+  if (
+    /mostrar.*(que decir|comandos|opciones|ayuda)/.test(t) ||
+    /que puedo decir/.test(t) ||
+    /ver comandos/.test(t)
+  ) {
+    return { type: 'SHOW_COMMANDS', raw: transcript }
+  }
+
+  if (/ocultar.*(menu|comandos)|cerrar menu|cerrar comandos/.test(t)) {
+    return { type: 'HIDE_COMMANDS', raw: transcript }
+  }
+
+  if (/(ir a|abrir|ve a|ir al|panel|inicio|pagina)/.test(t)) {
     if (/monitoreo/.test(t)) return { type: 'NAVIGATE', page: 'monitoreo', raw: transcript }
     if (/alerta/.test(t)) return { type: 'NAVIGATE', page: 'alertas', raw: transcript }
     if (/configuracion/.test(t)) return { type: 'NAVIGATE', page: 'configuraciones', raw: transcript }
@@ -136,122 +149,17 @@ function parseIntent(transcript: string): VoiceIntent {
   return { type: 'UNKNOWN', raw: transcript }
 }
 
-function intentLabel(intent: VoiceIntent): string {
-  switch (intent.type) {
-    case 'MOTOR_ON': return 'Encender motor'
-    case 'MOTOR_OFF': return 'Apagar motor'
-    case 'MODE_AUTO': return 'Modo automatico'
-    case 'MODE_MANUAL': return 'Modo manual'
-    case 'SETPOINT_UP': return `Subir setpoint a ${intent.value}°C`
-    case 'SETPOINT_DOWN': return `Bajar setpoint a ${intent.value}°C`
-    case 'SETPOINT_QUERY': return 'Consultar setpoint'
-    case 'SYSTEM_STATUS': return 'Estado del sistema'
-    case 'NAVIGATE': return `Ir a ${intent.page}`
-    case 'WEATHER': return intent.city ? `Clima en ${intent.city}` : 'Clima exterior'
-    case 'UNKNOWN': return 'Comando no reconocido'
-  }
-}
-
 export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded = false }: VoiceAssistantProps) {
-  const [status, setStatus] = useState<Status>('idle')
-  const [transcript, setTranscript] = useState('')
-  const [lastIntent, setLastIntent] = useState<VoiceIntent | null>(null)
-  const [errorMsg, setErrorMsg] = useState('')
-
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const onCommandRef = useRef(onCommand)
-
-  useEffect(() => {
-    onCommandRef.current = onCommand
-  }, [onCommand])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const SpeechRecognitionImpl =
-      window.SpeechRecognition || window.webkitSpeechRecognition
-
-    if (!SpeechRecognitionImpl) {
-      setStatus('unsupported')
-      return
-    }
-
-    const recognition = new SpeechRecognitionImpl()
-    recognition.lang = lang
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.maxAlternatives = 1
-
-    recognition.onstart = () => {
-      setStatus('listening')
-      setTranscript('')
-      setErrorMsg('')
-    }
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = ''
-      let final = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const text = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          final += text
-        } else {
-          interim += text
-        }
-      }
-      setTranscript(final || interim)
-
-      if (final) {
-        setStatus('processing')
-        const intent = parseIntent(final)
-        setLastIntent(intent)
-        onCommandRef.current(intent)
-        window.setTimeout(() => setStatus('idle'), 600)
-      }
-    }
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      setStatus('error')
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setErrorMsg('Permiso de microfono denegado.')
-      } else if (event.error === 'no-speech') {
-        setErrorMsg('No se detecto voz. Intenta de nuevo.')
-      } else {
-        setErrorMsg(`Error de reconocimiento: ${event.error}`)
-      }
-    }
-
-    recognition.onend = () => {
-      setStatus((prev) => (prev === 'listening' ? 'idle' : prev))
-    }
-
-    recognitionRef.current = recognition
-
-    return () => {
-      recognition.abort()
-      recognitionRef.current = null
-    }
-  }, [lang])
-
-  const handleToggle = useCallback(() => {
-    const recognition = recognitionRef.current
-    if (!recognition) return
-
-    if (status === 'listening') {
-      recognition.stop()
-      setStatus('idle')
-    } else {
-      try {
-        recognition.start()
-      } catch {
-        // start() lanza si ya esta activo
-      }
-    }
-  }, [status])
-
-  const isListening = status === 'listening'
-  const isProcessing = status === 'processing'
-  const isUnsupported = status === 'unsupported'
+  const {
+    status,
+    transcript,
+    responseText,
+    errorMsg,
+    startListening,
+    isListening,
+    isProcessing,
+    isUnsupported,
+  } = useVoiceRecognition({ lang, onCommand })
 
   return (
     <div
@@ -270,18 +178,18 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
           </div>
           <div>
             <h3 className="font-semibold leading-tight">Asistente de Voz</h3>
-            <p className="text-xs text-muted-foreground">Idioma: {lang}</p>
+            <p className="text-xs text-muted-foreground">Di &quot;mostrar que decir&quot; para ver comandos</p>
           </div>
         </div>
       )}
 
       <Button
-        onClick={handleToggle}
+        onClick={startListening}
         disabled={isUnsupported || isProcessing}
         className={cn(
           'h-14 w-full text-base font-semibold transition-colors',
           isListening
-            ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
             : 'bg-primary text-primary-foreground hover:bg-primary/90'
         )}
         aria-pressed={isListening}
@@ -293,8 +201,8 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
           </>
         ) : isListening ? (
           <>
-            <MicOff className="mr-2 h-5 w-5" />
-            Detener
+            <Waves className="mr-2 h-5 w-5 animate-pulse" />
+            Escuchando...
           </>
         ) : (
           <>
@@ -308,7 +216,7 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
         <span
           className={cn(
             'h-2.5 w-2.5 rounded-full',
-            isListening && 'animate-pulse bg-destructive',
+            isListening && 'animate-pulse bg-emerald-500',
             isProcessing && 'animate-pulse bg-accent',
             status === 'idle' && 'bg-muted-foreground/40',
             status === 'error' && 'bg-destructive',
@@ -318,7 +226,7 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
         <span className="text-muted-foreground">
           {isListening && 'Escuchando...'}
           {isProcessing && 'Procesando...'}
-          {status === 'idle' && 'Listo'}
+          {status === 'idle' && !responseText && 'Listo'}
           {status === 'error' && (errorMsg || 'Error')}
           {isUnsupported && 'Tu navegador no soporta reconocimiento de voz'}
         </span>
@@ -326,42 +234,18 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
 
       {transcript && (
         <div className="rounded-lg bg-secondary/50 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Transcripcion
-          </p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tu voz</p>
           <p className="mt-1 text-sm">{transcript}</p>
         </div>
       )}
 
-      {lastIntent && (
-        <div
-          className={cn(
-            'rounded-lg border p-3',
-            lastIntent.type === 'UNKNOWN'
-              ? 'border-destructive/40 bg-destructive/10'
-              : 'border-primary/40 bg-primary/10'
-          )}
-        >
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Intencion
-          </p>
-          <p className="mt-1 text-sm font-medium">{intentLabel(lastIntent)}</p>
+      {responseText && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3">
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+            <p className="text-sm">{responseText}</p>
+          </div>
         </div>
-      )}
-
-      {!embedded && (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none font-medium">
-            Comandos disponibles
-          </summary>
-          <ul className="mt-2 list-inside list-disc space-y-1">
-            <li>&quot;Enciende el motor&quot; / &quot;Apaga el motor&quot;</li>
-            <li>&quot;Modo automatico&quot; / &quot;Modo manual&quot;</li>
-            <li>&quot;Estado del sistema&quot; / &quot;Cual es el setpoint&quot;</li>
-            <li>&quot;Clima en Cali&quot; / &quot;Que tiempo hace&quot;</li>
-            <li>&quot;Ir a monitoreo&quot; / &quot;Abrir alertas&quot;</li>
-          </ul>
-        </details>
       )}
     </div>
   )

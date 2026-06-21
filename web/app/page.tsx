@@ -9,7 +9,7 @@ import { ConfiguracionesPage } from '@/components/dashboard/configuraciones-page
 import { AlertasPage } from '@/components/dashboard/alertas-page'
 import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
-import { VoiceAssistant, type VoiceIntent } from '@/components/voice-assistant'
+import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
 import { executeVoiceIntent, PAGE_LABELS } from '@/lib/voice-commands'
 import { speak } from '@/lib/speech-synthesis'
@@ -21,20 +21,35 @@ const DEFAULT_WEATHER_CITY = 'Cali'
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
   const [voiceSectionVisible, setVoiceSectionVisible] = useState(false)
+  const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, updateData, isDemo, lastHeartbeatAt } = useAVCData()
 
   const handleVoiceSectionVisibleChange = useCallback((visible: boolean) => {
     setVoiceSectionVisible(visible)
   }, [])
 
-  const handleVoiceCommand = useCallback(async (intent: VoiceIntent) => {
+  const handleVoiceCommand = useCallback(async (intent: VoiceIntent): Promise<string | null> => {
+    if (intent.type === 'SHOW_COMMANDS') {
+      setCommandsMenuOpen(true)
+      const message = 'Estos son los comandos que puedes decir.'
+      speak(message)
+      return message
+    }
+
+    if (intent.type === 'HIDE_COMMANDS') {
+      setCommandsMenuOpen(false)
+      const message = 'Menu de comandos cerrado.'
+      speak(message)
+      return message
+    }
+
     if (intent.type === 'NAVIGATE') {
       setCurrentPage(intent.page)
       const label = PAGE_LABELS[intent.page] ?? intent.page
       const message = `Abriendo ${label}`
       toast.success(message)
       speak(message)
-      return
+      return message
     }
 
     if (intent.type === 'WEATHER') {
@@ -44,12 +59,13 @@ export default function Dashboard() {
         const message = await fetchWeatherSummary(city)
         toast.success(message, { id: 'weather-voice', duration: 8000 })
         speak(message)
+        return message
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No pude consultar el clima'
         toast.error(message, { id: 'weather-voice' })
         speak(message)
+        return message
       }
-      return
     }
 
     const message = executeVoiceIntent(intent, updateData, data)
@@ -60,11 +76,13 @@ export default function Dashboard() {
         toast.success(message)
       }
       speak(message)
-      return
+      return message
     }
 
-    toast.error('Comando no reconocido')
-    speak('Comando no reconocido')
+    const fallback = 'Comando no reconocido'
+    toast.error(fallback)
+    speak(fallback)
+    return fallback
   }, [data, updateData])
 
   if (loading) {
@@ -170,11 +188,11 @@ export default function Dashboard() {
       <VoiceFloatingAssistant
         currentPage={currentPage}
         voiceSectionVisible={voiceSectionVisible}
-      >
-        {!(currentPage === 'home' && voiceSectionVisible) && (
-          <VoiceAssistant onCommand={handleVoiceCommand} lang="es-CO" embedded />
-        )}
-      </VoiceFloatingAssistant>
+        commandsMenuOpen={commandsMenuOpen}
+        onCommandsMenuOpenChange={setCommandsMenuOpen}
+        onCommand={handleVoiceCommand}
+        lang="es-CO"
+      />
     </div>
   )
 }

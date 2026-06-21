@@ -15,7 +15,7 @@ interface HomePageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => void
   onVoiceSectionVisibleChange?: (visible: boolean) => void
-  onVoiceCommand?: (intent: VoiceIntent) => void | Promise<void>
+  onVoiceCommand?: (intent: VoiceIntent) => Promise<string | null> | string | null
 }
 
 export function HomePage({

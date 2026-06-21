@@ -42,6 +42,8 @@ export function executeVoiceIntent(
       return buildSystemStatusMessage(data)
     case 'NAVIGATE':
     case 'WEATHER':
+    case 'SHOW_COMMANDS':
+    case 'HIDE_COMMANDS':
     case 'UNKNOWN':
       return null
   }
