@@ -139,8 +139,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 sticky top-0 z-40">
+    <div className="h-dvh bg-background flex flex-col overflow-hidden">
+      <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground">AVC-01 Dashboard</h1>
@@ -166,13 +166,13 @@ export default function Dashboard() {
         wifiConnected={data.wifi.conectado}
       />
 
-      <main className="lg:ml-64 flex-1 pb-20 lg:pb-0">
+      <main className="lg:ml-64 flex-1 min-h-0 overflow-y-auto pb-20 lg:pb-0">
         <section className="p-4 md:p-6 lg:p-8">
           {renderPage()}
         </section>
       </main>
 
-      <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto">
+      <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 shrink-0">
         <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>AVC-01 - Adaptive Ventilation Controller | Proyecto de Grado 2024</p>
           <p>Desarrollado con Next.js + Firebase Realtime Database</p>

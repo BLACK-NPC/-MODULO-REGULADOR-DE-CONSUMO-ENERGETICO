@@ -200,7 +200,6 @@ export function VoiceFloatingAssistant({
       if (e.button !== 0 && e.pointerType === 'mouse') return
       const target = e.target as HTMLElement
       if (target.closest('[data-no-drag]')) return
-      if (fabButtonRef.current?.contains(target)) return
 
       e.currentTarget.setPointerCapture(e.pointerId)
       dragging.current = true
@@ -230,14 +229,18 @@ export function VoiceFloatingAssistant({
     [commandsMenuOpen]
   )
 
-  const onGroupPointerUp = useCallback(() => {
-    if (!dragging.current) return
-    dragging.current = false
-  }, [])
+  const onGroupPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging.current) return
+      dragging.current = false
 
-  const handleFabActivate = useCallback(() => {
-    startListening()
-  }, [startListening])
+      const tappedFab = fabButtonRef.current?.contains(e.target as Node)
+      if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
+        startListening()
+      }
+    },
+    [startListening]
+  )
 
   const showBubble =
     !shouldHide &&
@@ -353,11 +356,6 @@ export function VoiceFloatingAssistant({
         <button
           ref={fabButtonRef}
           type="button"
-          data-no-drag
-          onClick={(e) => {
-            e.stopPropagation()
-            handleFabActivate()
-          }}
           aria-label={
             isListening || isProcessing
               ? 'Detener asistente de voz'
@@ -367,10 +365,10 @@ export function VoiceFloatingAssistant({
             width: FAB_SIZE,
             height: FAB_SIZE,
             flexShrink: 0,
-            touchAction: 'manipulation',
+            touchAction: 'none',
           }}
           className={cn(
-            'relative flex items-center justify-center rounded-full border-none cursor-pointer outline-none p-0',
+            'relative flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing outline-none p-0',
             'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 shadow-lg shadow-emerald-900/40',
             'transition-transform duration-200',
             (isListening || isProcessing) &&
