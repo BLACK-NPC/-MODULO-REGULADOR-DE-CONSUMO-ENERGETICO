@@ -233,14 +233,24 @@ export function VoiceFloatingAssistant({
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!dragging.current) return
       dragging.current = false
+    },
+    []
+  )
 
-      const tappedFab = fabButtonRef.current?.contains(e.target as Node)
-      if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
-        startListening()
+  const handleFabActivate = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation()
+      if (totalMove.current >= DRAG_THRESHOLD) {
+        totalMove.current = 0
+        return
       }
+      startListening()
     },
     [startListening]
   )
+
+  const bubbleLeft = groupX + FAB_SIZE / 2
+  const bubbleTop = groupY - 8
 
   const showBubble =
     !shouldHide &&
@@ -253,7 +263,8 @@ export function VoiceFloatingAssistant({
     <>
       {showBubble && (
         <div
-          className="fixed left-1/2 top-20 z-[60] w-[min(92vw,420px)] -translate-x-1/2 pointer-events-none"
+          className="fixed z-[60] w-[min(280px,88vw)] -translate-x-1/2 -translate-y-full pointer-events-none"
+          style={{ left: bubbleLeft, top: bubbleTop }}
           aria-live="polite"
         >
           <div className="rounded-2xl border border-emerald-500/30 bg-gray-950/95 backdrop-blur-md shadow-xl shadow-black/40 px-4 py-3 space-y-2">
@@ -356,6 +367,7 @@ export function VoiceFloatingAssistant({
         <button
           ref={fabButtonRef}
           type="button"
+          onClick={handleFabActivate}
           aria-label={
             isListening || isProcessing
               ? 'Detener asistente de voz'

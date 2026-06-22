@@ -139,45 +139,47 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
-      <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground">AVC-01 Dashboard</h1>
-            <p className="text-xs text-muted-foreground">Sistema de Ventilacion Adaptativa</p>
+    <>
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-bold text-foreground">AVC-01 Dashboard</h1>
+              <p className="text-xs text-muted-foreground">Sistema de Ventilacion Adaptativa</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {isDemo ? (
+                <span className="px-2 py-1 rounded-full text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  Modo Demo
+                </span>
+              ) : (
+                <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
+                  Firebase Conectado
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isDemo ? (
-              <span className="px-2 py-1 rounded-full text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Modo Demo
-              </span>
-            ) : (
-              <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
-                Firebase Conectado
-              </span>
-            )}
+        </header>
+
+        <Sidebar
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          wifiConnected={data.wifi.conectado}
+        />
+
+        <main className="lg:ml-64 flex-1 pb-20 lg:pb-0">
+          <section className="p-4 md:p-6 lg:p-8">
+            {renderPage()}
+          </section>
+        </main>
+
+        <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto shrink-0">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>AVC-01 - Adaptive Ventilation Controller | Proyecto de Grado 2024</p>
+            <p>Desarrollado con Next.js + Firebase Realtime Database</p>
           </div>
-        </div>
-      </header>
-
-      <Sidebar
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        wifiConnected={data.wifi.conectado}
-      />
-
-      <main className="lg:ml-64 flex-1 min-h-0 overflow-y-auto pb-20 lg:pb-0">
-        <section className="p-4 md:p-6 lg:p-8">
-          {renderPage()}
-        </section>
-      </main>
-
-      <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 shrink-0">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-          <p>AVC-01 - Adaptive Ventilation Controller | Proyecto de Grado 2024</p>
-          <p>Desarrollado con Next.js + Firebase Realtime Database</p>
-        </div>
-      </footer>
+        </footer>
+      </div>
 
       <VoiceFloatingAssistant
         currentPage={currentPage}
@@ -187,6 +189,6 @@ export default function Dashboard() {
         onCommand={handleVoiceCommand}
         lang="es-CO"
       />
-    </div>
+    </>
   )
 }
