@@ -12,8 +12,12 @@ export type VoiceRecognitionStatus =
   | 'unsupported'
   | 'error'
 
-const INACTIVITY_TIMEOUT_MS = 5000
-const RESTART_DELAY_MS = 200
+/** Tiempo sin hablar antes de apagar la sesion (como el ejemplo HTML de 15 s). */
+const INACTIVITY_TIMEOUT_MS = 15000
+/** Pausa tras terminar TTS antes de reabrir el microfono (Android). */
+const POST_TTS_DELAY_MS = 400
+/** Pausa antes de reiniciar recognition tras onend vacio. */
+const RESTART_DELAY_MS = 250
 
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
@@ -43,6 +47,7 @@ export function useVoiceRecognition({
   const busyRef = useRef(false)
   const commandAbortRef = useRef<AbortController | null>(null)
   const commandGenerationRef = useRef(0)
+  const pendingTranscriptRef = useRef('')
 
   useEffect(() => {
     onCommandRef.current = onCommand
@@ -76,6 +81,7 @@ export function useVoiceRecognition({
   const stopSession = useCallback(() => {
     sessionActiveRef.current = false
     busyRef.current = false
+    pendingTranscriptRef.current = ''
     abortCurrentCommand()
     clearInactivityTimer()
     clearRestartTimer()
@@ -94,13 +100,27 @@ export function useVoiceRecognition({
     if (!sessionActiveRef.current) return
 
     inactivityTimerRef.current = setTimeout(() => {
-      if (sessionActiveRef.current && !busyRef.current) {
-        stopSession()
-      }
-    }, INACTIVITY_TIMEOUT_MS)
-  }, [clearInactivityTimer, stopSession])
+      if (!sessionActiveRef.current || busyRef.current) return
 
-  const tryStartListening = useCallback(() => {
+      sessionActiveRef.current = false
+      busyRef.current = true
+      clearRestartTimer()
+      try {
+        recognitionRef.current?.abort()
+      } catch {
+        recognitionRef.current?.stop()
+      }
+
+      void speak('Asistente desactivado por falta de respuesta.', lang).finally(() => {
+        busyRef.current = false
+        setStatus('idle')
+        setTranscript('')
+        onSessionEndRef.current?.()
+      })
+    }, INACTIVITY_TIMEOUT_MS)
+  }, [clearInactivityTimer, lang])
+
+  const tryStartListening = useCallback((delayMs = RESTART_DELAY_MS) => {
     const recognition = recognitionRef.current
     if (!recognition || !sessionActiveRef.current || busyRef.current) return
 
@@ -108,20 +128,22 @@ export function useVoiceRecognition({
     restartTimerRef.current = setTimeout(() => {
       if (!sessionActiveRef.current || busyRef.current) return
 
+      pendingTranscriptRef.current = ''
       try {
         recognition.start()
       } catch {
-        /* already running */
+        /* ya en ejecucion */
       }
-    }, RESTART_DELAY_MS)
+    }, delayMs)
   }, [clearRestartTimer])
 
-  const resumeAfterResponse = useCallback(() => {
+  /** Reinicia el microfono SOLO despues de que termina el TTS (patron HTML onend). */
+  const resumeListeningAfterSpeech = useCallback(() => {
     if (!sessionActiveRef.current) return
     busyRef.current = false
     setStatus('listening')
     scheduleInactivityTimeout()
-    tryStartListening()
+    tryStartListening(POST_TTS_DELAY_MS)
   }, [scheduleInactivityTimeout, tryStartListening])
 
   const processFinalTranscript = useCallback(
@@ -157,7 +179,7 @@ export function useVoiceRecognition({
           commandAbortRef.current = null
         }
         if (sessionActiveRef.current) {
-          resumeAfterResponse()
+          resumeListeningAfterSpeech()
         }
         return
       }
@@ -188,9 +210,9 @@ export function useVoiceRecognition({
         return
       }
 
-      resumeAfterResponse()
+      resumeListeningAfterSpeech()
     },
-    [clearInactivityTimer, lang, resumeAfterResponse]
+    [clearInactivityTimer, lang, resumeListeningAfterSpeech]
   )
 
   useEffect(() => {
@@ -221,17 +243,17 @@ export function useVoiceRecognition({
       if (!sessionActiveRef.current) return
 
       let interim = ''
-      let final = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      let allFinal = ''
+      for (let i = 0; i < event.results.length; i++) {
         const text = event.results[i][0].transcript
         if (event.results[i].isFinal) {
-          final += text
-        } else {
+          allFinal += text
+        } else if (i >= event.resultIndex) {
           interim += text
         }
       }
 
-      const spoken = (final || interim).trim()
+      const spoken = (allFinal || interim).trim()
       if (spoken) {
         scheduleInactivityTimeout()
       }
@@ -240,14 +262,16 @@ export function useVoiceRecognition({
         abortCurrentCommand()
         busyRef.current = false
         setResponseText(null)
+        setStatus('listening')
       }
 
-      setTranscript(final || interim)
+      const heard = (allFinal || interim).trim()
+      if (heard) {
+        // Android a veces no marca isFinal antes de onend; guardar lo ultimo escuchado.
+        pendingTranscriptRef.current = heard
+      }
 
-      if (!final.trim()) return
-
-      busyRef.current = true
-      void processFinalTranscript(final.trim())
+      setTranscript(heard)
     }
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -256,7 +280,6 @@ export function useVoiceRecognition({
       if (event.error === 'no-speech' || event.error === 'network') {
         if (sessionActiveRef.current && !busyRef.current) {
           scheduleInactivityTimeout()
-          tryStartListening()
         }
         return
       }
@@ -269,6 +292,7 @@ export function useVoiceRecognition({
 
       sessionActiveRef.current = false
       busyRef.current = false
+      pendingTranscriptRef.current = ''
       clearInactivityTimer()
       clearRestartTimer()
       setStatus('error')
@@ -276,6 +300,16 @@ export function useVoiceRecognition({
 
     recognition.onend = () => {
       if (!sessionActiveRef.current || busyRef.current) return
+
+      const text = pendingTranscriptRef.current.trim()
+      pendingTranscriptRef.current = ''
+
+      if (text) {
+        busyRef.current = true
+        void processFinalTranscript(text)
+        return
+      }
+
       scheduleInactivityTimeout()
       tryStartListening()
     }
@@ -311,6 +345,7 @@ export function useVoiceRecognition({
 
     sessionActiveRef.current = true
     busyRef.current = false
+    pendingTranscriptRef.current = ''
     commandGenerationRef.current = 0
     setTranscript('')
     setResponseText(null)
