@@ -111,6 +111,8 @@ export function VoiceFloatingAssistant({
   const startFabPos = useRef({ x: 0, y: 0 })
   const totalMove = useRef(0)
   const fabButtonRef = useRef<HTMLButtonElement>(null)
+  const lastFabActivateMs = useRef(0)
+  const activePointerId = useRef<number | null>(null)
 
   const handleSessionEnd = useCallback(() => {
     onCommandsMenuOpenChange(false)
@@ -163,16 +165,22 @@ export function VoiceFloatingAssistant({
 
   useEffect(() => {
     function dismissBubble(e: Event) {
-      if (groupRef.current?.contains(e.target as Node)) return
+      const target = e.target as Node
+      if (groupRef.current?.contains(target)) return
       setBubbleVisible(false)
     }
     document.addEventListener('pointerdown', dismissBubble)
-    document.addEventListener('touchstart', dismissBubble, { passive: true })
     return () => {
       document.removeEventListener('pointerdown', dismissBubble)
-      document.removeEventListener('touchstart', dismissBubble)
     }
   }, [])
+
+  const activateFab = useCallback(() => {
+    const now = Date.now()
+    if (now - lastFabActivateMs.current < 350) return
+    lastFabActivateMs.current = now
+    startListening()
+  }, [startListening])
 
   const shouldHide = hidden || (voiceSectionVisible && currentPage === 'home')
 
@@ -201,21 +209,38 @@ export function VoiceFloatingAssistant({
       const target = e.target as HTMLElement
       if (target.closest('[data-no-drag]')) return
 
-      e.currentTarget.setPointerCapture(e.pointerId)
       dragging.current = true
       totalMove.current = 0
+      activePointerId.current = e.pointerId
       startPointer.current = { x: e.clientX, y: e.clientY }
       startFabPos.current = { ...fabPos }
+
+      const onFab = fabButtonRef.current?.contains(target)
+      if (!onFab) {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }
     },
     [fabPos]
   )
 
   const onGroupPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragging.current) return
+      if (!dragging.current || activePointerId.current !== e.pointerId) return
+
       const dx = e.clientX - startPointer.current.x
       const dy = e.clientY - startPointer.current.y
       totalMove.current = Math.sqrt(dx * dx + dy * dy)
+
+      if (
+        totalMove.current >= DRAG_THRESHOLD &&
+        groupRef.current &&
+        !groupRef.current.hasPointerCapture(e.pointerId)
+      ) {
+        groupRef.current.setPointerCapture(e.pointerId)
+      }
+
+      if (totalMove.current < DRAG_THRESHOLD) return
+
       setFabPos(
         clampFabPosition(
           {
@@ -229,28 +254,49 @@ export function VoiceFloatingAssistant({
     [commandsMenuOpen]
   )
 
+  const endPointerInteraction = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging.current || activePointerId.current !== e.pointerId) return
+
+      dragging.current = false
+      activePointerId.current = null
+
+      if (groupRef.current?.hasPointerCapture(e.pointerId)) {
+        groupRef.current.releasePointerCapture(e.pointerId)
+      }
+
+      const tappedFab = fabButtonRef.current?.contains(e.target as Node)
+      if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
+        activateFab()
+      }
+
+      totalMove.current = 0
+    },
+    [activateFab]
+  )
+
   const onGroupPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragging.current) return
-      dragging.current = false
+      endPointerInteraction(e)
     },
-    []
+    [endPointerInteraction]
   )
 
-  const handleFabActivate = useCallback(
+  const onGroupPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      endPointerInteraction(e)
+    },
+    [endPointerInteraction]
+  )
+
+  const handleFabClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation()
-      if (totalMove.current >= DRAG_THRESHOLD) {
-        totalMove.current = 0
-        return
-      }
-      startListening()
+      if (totalMove.current >= DRAG_THRESHOLD) return
+      activateFab()
     },
-    [startListening]
+    [activateFab]
   )
-
-  const bubbleLeft = groupX + FAB_SIZE / 2
-  const bubbleTop = groupY - 8
 
   const showBubble =
     !shouldHide &&
@@ -263,8 +309,7 @@ export function VoiceFloatingAssistant({
     <>
       {showBubble && (
         <div
-          className="fixed z-[60] w-[min(280px,88vw)] -translate-x-1/2 -translate-y-full pointer-events-none"
-          style={{ left: bubbleLeft, top: bubbleTop }}
+          className="fixed left-1/2 top-20 z-[60] w-[min(92vw,420px)] -translate-x-1/2 pointer-events-none"
           aria-live="polite"
         >
           <div className="rounded-2xl border border-emerald-500/30 bg-gray-950/95 backdrop-blur-md shadow-xl shadow-black/40 px-4 py-3 space-y-2">
@@ -314,6 +359,7 @@ export function VoiceFloatingAssistant({
         onPointerDown={onGroupPointerDown}
         onPointerMove={onGroupPointerMove}
         onPointerUp={onGroupPointerUp}
+        onPointerCancel={onGroupPointerCancel}
       >
         {commandsMenuOpen && (
           <div
@@ -367,7 +413,7 @@ export function VoiceFloatingAssistant({
         <button
           ref={fabButtonRef}
           type="button"
-          onClick={handleFabActivate}
+          onClick={handleFabClick}
           aria-label={
             isListening || isProcessing
               ? 'Detener asistente de voz'
@@ -377,7 +423,7 @@ export function VoiceFloatingAssistant({
             width: FAB_SIZE,
             height: FAB_SIZE,
             flexShrink: 0,
-            touchAction: 'none',
+            touchAction: 'manipulation',
           }}
           className={cn(
             'relative flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing outline-none p-0',
