@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
+import { stopSpeaking } from '@/lib/speech-synthesis'
 
 export type VoiceRecognitionStatus =
   | 'idle'
@@ -11,10 +12,19 @@ export type VoiceRecognitionStatus =
   | 'error'
 
 const SILENCE_TIMEOUT_MS = 5000
+const RESTART_DELAY_MS = 250
+
+function isAndroidDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Android/i.test(navigator.userAgent)
+}
 
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
-  onCommand: (intent: VoiceIntent) => Promise<string | null> | string | null
+  onCommand: (
+    intent: VoiceIntent,
+    signal?: AbortSignal
+  ) => Promise<string | null> | string | null
   onSessionEnd?: () => void
 }
 
@@ -33,7 +43,11 @@ export function useVoiceRecognition({
   const onSessionEndRef = useRef(onSessionEnd)
   const sessionActiveRef = useRef(false)
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const processingRef = useRef(false)
+  const commandAbortRef = useRef<AbortController | null>(null)
+  const commandGenerationRef = useRef(0)
+  const useContinuousRef = useRef(true)
 
   useEffect(() => {
     onCommandRef.current = onCommand
@@ -50,15 +64,35 @@ export function useVoiceRecognition({
     }
   }, [])
 
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
+  }, [])
+
+  const abortCurrentCommand = useCallback(() => {
+    commandGenerationRef.current += 1
+    commandAbortRef.current?.abort()
+    commandAbortRef.current = null
+    stopSpeaking()
+  }, [])
+
   const stopSession = useCallback(() => {
     sessionActiveRef.current = false
     processingRef.current = false
+    abortCurrentCommand()
     clearSilenceTimer()
-    recognitionRef.current?.stop()
+    clearRestartTimer()
+    try {
+      recognitionRef.current?.abort()
+    } catch {
+      recognitionRef.current?.stop()
+    }
     setStatus('idle')
     setTranscript('')
     onSessionEndRef.current?.()
-  }, [clearSilenceTimer])
+  }, [abortCurrentCommand, clearSilenceTimer, clearRestartTimer])
 
   const scheduleSilenceTimeout = useCallback(() => {
     clearSilenceTimer()
@@ -73,19 +107,78 @@ export function useVoiceRecognition({
 
   const restartListening = useCallback(() => {
     const recognition = recognitionRef.current
-    if (!recognition || !sessionActiveRef.current) return
+    if (!recognition || !sessionActiveRef.current || processingRef.current) return
 
-    try {
-      recognition.start()
-      setStatus('listening')
-    } catch {
-      /* already running */
-    }
-    scheduleSilenceTimeout()
-  }, [scheduleSilenceTimeout])
+    clearRestartTimer()
+    restartTimerRef.current = setTimeout(() => {
+      if (!sessionActiveRef.current || processingRef.current) return
+
+      try {
+        recognition.start()
+        setStatus('listening')
+        scheduleSilenceTimeout()
+      } catch {
+        /* already running */
+      }
+    }, RESTART_DELAY_MS)
+  }, [clearRestartTimer, scheduleSilenceTimeout])
+
+  const processFinalTranscript = useCallback(
+    async (finalText: string) => {
+      const generation = commandGenerationRef.current + 1
+      commandGenerationRef.current = generation
+
+      const abortController = new AbortController()
+      commandAbortRef.current = abortController
+
+      processingRef.current = true
+      setStatus('processing')
+      clearSilenceTimer()
+
+      const intent = parseIntent(finalText)
+      let message: string | null = null
+
+      try {
+        message = await onCommandRef.current(intent, abortController.signal)
+      } catch {
+        if (!abortController.signal.aborted) {
+          setErrorMsg('Error al ejecutar el comando.')
+        }
+      }
+
+      if (
+        abortController.signal.aborted ||
+        generation !== commandGenerationRef.current ||
+        !sessionActiveRef.current
+      ) {
+        processingRef.current = false
+        if (commandAbortRef.current === abortController) {
+          commandAbortRef.current = null
+        }
+        return
+      }
+
+      if (message) {
+        setResponseText(message)
+      } else if (intent.type === 'UNKNOWN') {
+        setResponseText('Comando no reconocido')
+      }
+
+      processingRef.current = false
+      if (commandAbortRef.current === abortController) {
+        commandAbortRef.current = null
+      }
+
+      setTranscript('')
+      restartListening()
+    },
+    [clearSilenceTimer, restartListening]
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    useContinuousRef.current = !isAndroidDevice()
 
     const SpeechRecognitionImpl =
       window.SpeechRecognition || window.webkitSpeechRecognition
@@ -97,7 +190,7 @@ export function useVoiceRecognition({
 
     const recognition = new SpeechRecognitionImpl()
     recognition.lang = lang
-    recognition.continuous = true
+    recognition.continuous = useContinuousRef.current
     recognition.interimResults = true
     recognition.maxAlternatives = 1
 
@@ -110,8 +203,6 @@ export function useVoiceRecognition({
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       if (!sessionActiveRef.current) return
 
-      scheduleSilenceTimeout()
-
       let interim = ''
       let final = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -122,33 +213,24 @@ export function useVoiceRecognition({
           interim += text
         }
       }
+
+      const spoken = (final || interim).trim()
+      if (spoken) {
+        scheduleSilenceTimeout()
+      }
+
+      if (processingRef.current && spoken) {
+        abortCurrentCommand()
+        processingRef.current = false
+        setStatus('listening')
+        setResponseText(null)
+      }
+
       setTranscript(final || interim)
 
       if (!final.trim()) return
 
-      void (async () => {
-        processingRef.current = true
-        setStatus('processing')
-        clearSilenceTimer()
-
-        const intent = parseIntent(final)
-        const message = await onCommandRef.current(intent)
-        if (message) {
-          setResponseText(message)
-        } else if (intent.type === 'UNKNOWN') {
-          setResponseText('Comando no reconocido')
-        }
-
-        processingRef.current = false
-
-        if (!sessionActiveRef.current) {
-          setStatus('idle')
-          return
-        }
-
-        setTranscript('')
-        restartListening()
-      })()
+      void processFinalTranscript(final.trim())
     }
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -161,10 +243,16 @@ export function useVoiceRecognition({
         return
       }
 
+      if (event.error === 'network') {
+        scheduleSilenceTimeout()
+        return
+      }
+
       setStatus('error')
       sessionActiveRef.current = false
       processingRef.current = false
       clearSilenceTimer()
+      clearRestartTimer()
 
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setErrorMsg('Permiso de microfono denegado.')
@@ -189,10 +277,20 @@ export function useVoiceRecognition({
     return () => {
       sessionActiveRef.current = false
       clearSilenceTimer()
+      clearRestartTimer()
+      abortCurrentCommand()
       recognition.abort()
       recognitionRef.current = null
     }
-  }, [lang, clearSilenceTimer, restartListening, scheduleSilenceTimeout])
+  }, [
+    lang,
+    abortCurrentCommand,
+    clearRestartTimer,
+    clearSilenceTimer,
+    processFinalTranscript,
+    restartListening,
+    scheduleSilenceTimeout,
+  ])
 
   const startListening = useCallback(() => {
     const recognition = recognitionRef.current
@@ -203,10 +301,9 @@ export function useVoiceRecognition({
       return
     }
 
-    if (status === 'processing') return
-
     sessionActiveRef.current = true
     processingRef.current = false
+    commandGenerationRef.current = 0
     setTranscript('')
     setResponseText(null)
     setErrorMsg('')
@@ -216,7 +313,8 @@ export function useVoiceRecognition({
       setStatus('listening')
       scheduleSilenceTimeout()
     } catch {
-      /* already active */
+      sessionActiveRef.current = false
+      setStatus('idle')
     }
   }, [status, stopSession, scheduleSilenceTimeout])
 

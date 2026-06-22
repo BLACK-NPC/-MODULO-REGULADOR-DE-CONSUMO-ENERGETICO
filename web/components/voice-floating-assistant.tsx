@@ -24,7 +24,10 @@ export interface VoiceFloatingAssistantProps {
   voiceSectionVisible: boolean
   commandsMenuOpen: boolean
   onCommandsMenuOpenChange: (open: boolean) => void
-  onCommand: (intent: VoiceIntent) => Promise<string | null> | string | null
+  onCommand: (
+    intent: VoiceIntent,
+    signal?: AbortSignal
+  ) => Promise<string | null> | string | null
   lang?: 'es-CO' | 'es-ES'
 }
 
@@ -159,12 +162,16 @@ export function VoiceFloatingAssistant({
   }, [responseText, errorMsg])
 
   useEffect(() => {
-    function dismissBubble(e: PointerEvent) {
+    function dismissBubble(e: Event) {
       if (groupRef.current?.contains(e.target as Node)) return
       setBubbleVisible(false)
     }
     document.addEventListener('pointerdown', dismissBubble)
-    return () => document.removeEventListener('pointerdown', dismissBubble)
+    document.addEventListener('touchstart', dismissBubble, { passive: true })
+    return () => {
+      document.removeEventListener('pointerdown', dismissBubble)
+      document.removeEventListener('touchstart', dismissBubble)
+    }
   }, [])
 
   const shouldHide = hidden || (voiceSectionVisible && currentPage === 'home')
@@ -222,18 +229,10 @@ export function VoiceFloatingAssistant({
     [commandsMenuOpen]
   )
 
-  const onGroupPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragging.current) return
-      dragging.current = false
-
-      const tappedFab = fabButtonRef.current?.contains(e.target as Node)
-      if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
-        startListening()
-      }
-    },
-    [startListening]
-  )
+  const onGroupPointerUp = useCallback(() => {
+    if (!dragging.current) return
+    dragging.current = false
+  }, [])
 
   const showBubble =
     !shouldHide &&
@@ -349,17 +348,28 @@ export function VoiceFloatingAssistant({
         <button
           ref={fabButtonRef}
           type="button"
-          aria-label={isListening ? 'Detener asistente de voz' : 'Activar asistente de voz'}
+          data-no-drag
+          onClick={(e) => {
+            e.stopPropagation()
+            handleFabActivate()
+          }}
+          aria-label={
+            isListening || isProcessing
+              ? 'Detener asistente de voz'
+              : 'Activar asistente de voz'
+          }
           style={{
             width: FAB_SIZE,
             height: FAB_SIZE,
             flexShrink: 0,
+            touchAction: 'manipulation',
           }}
           className={cn(
-            'relative flex items-center justify-center rounded-full border-none cursor-grab outline-none p-0',
-            'bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/40',
+            'relative flex items-center justify-center rounded-full border-none cursor-pointer outline-none p-0',
+            'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 shadow-lg shadow-emerald-900/40',
             'transition-transform duration-200',
-            isListening && 'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950'
+            (isListening || isProcessing) &&
+              'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950'
           )}
         >
           <Mic size={22} className="text-white relative z-10" />

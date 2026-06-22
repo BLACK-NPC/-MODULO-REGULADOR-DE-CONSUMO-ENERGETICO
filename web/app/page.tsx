@@ -28,18 +28,19 @@ export default function Dashboard() {
     setVoiceSectionVisible(visible)
   }, [])
 
-  const handleVoiceCommand = useCallback(async (intent: VoiceIntent): Promise<string | null> => {
+  const handleVoiceCommand = useCallback(async (intent: VoiceIntent, signal?: AbortSignal): Promise<string | null> => {
+    if (signal?.aborted) return null
+
     if (intent.type === 'SHOW_COMMANDS') {
       setCommandsMenuOpen(true)
-      const message = 'Estos son los comandos que puedes decir.'
-      speak(message)
-      return message
+      speak('Estos son los comandos que puedes decir.')
+      return null
     }
 
     if (intent.type === 'HIDE_COMMANDS') {
       setCommandsMenuOpen(false)
       const message = 'Menu de comandos cerrado.'
-      speak(message)
+      if (!signal?.aborted) speak(message)
       return message
     }
 
@@ -48,7 +49,7 @@ export default function Dashboard() {
       const label = PAGE_LABELS[intent.page] ?? intent.page
       const message = `Abriendo ${label}`
       toast.success(message)
-      speak(message)
+      if (!signal?.aborted) speak(message)
       return message
     }
 
@@ -57,10 +58,12 @@ export default function Dashboard() {
       toast.loading(`Consultando clima en ${city}...`, { id: 'weather-voice' })
       try {
         const message = await fetchWeatherSummary(city)
+        if (signal?.aborted) return null
         toast.success(message, { id: 'weather-voice', duration: 8000 })
         speak(message)
         return message
       } catch (err) {
+        if (signal?.aborted) return null
         const message = err instanceof Error ? err.message : 'No pude consultar el clima'
         toast.error(message, { id: 'weather-voice' })
         speak(message)
@@ -75,13 +78,13 @@ export default function Dashboard() {
       } else {
         toast.success(message)
       }
-      speak(message)
+      if (!signal?.aborted) speak(message)
       return message
     }
 
     const fallback = 'Comando no reconocido'
     toast.error(fallback)
-    speak(fallback)
+    if (!signal?.aborted) speak(fallback)
     return fallback
   }, [data, updateData])
 
