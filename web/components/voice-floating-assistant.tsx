@@ -200,6 +200,7 @@ export function VoiceFloatingAssistant({
       if (e.button !== 0 && e.pointerType === 'mouse') return
       const target = e.target as HTMLElement
       if (target.closest('[data-no-drag]')) return
+      if (fabButtonRef.current?.contains(target)) return
 
       e.currentTarget.setPointerCapture(e.pointerId)
       dragging.current = true
@@ -233,6 +234,10 @@ export function VoiceFloatingAssistant({
     if (!dragging.current) return
     dragging.current = false
   }, [])
+
+  const handleFabActivate = useCallback(() => {
+    startListening()
+  }, [startListening])
 
   const showBubble =
     !shouldHide &&

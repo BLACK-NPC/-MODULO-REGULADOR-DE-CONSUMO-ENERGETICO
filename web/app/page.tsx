@@ -12,7 +12,6 @@ import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-f
 import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
 import { executeVoiceIntent, PAGE_LABELS } from '@/lib/voice-commands'
-import { speak } from '@/lib/speech-synthesis'
 import { fetchWeatherSummary } from '@/lib/weather'
 import { Loader2 } from 'lucide-react'
 
@@ -33,15 +32,12 @@ export default function Dashboard() {
 
     if (intent.type === 'SHOW_COMMANDS') {
       setCommandsMenuOpen(true)
-      speak('Estos son los comandos que puedes decir.')
-      return null
+      return 'Estos son los comandos que puedes decir.'
     }
 
     if (intent.type === 'HIDE_COMMANDS') {
       setCommandsMenuOpen(false)
-      const message = 'Menu de comandos cerrado.'
-      if (!signal?.aborted) speak(message)
-      return message
+      return 'Menu de comandos cerrado.'
     }
 
     if (intent.type === 'NAVIGATE') {
@@ -49,7 +45,6 @@ export default function Dashboard() {
       const label = PAGE_LABELS[intent.page] ?? intent.page
       const message = `Abriendo ${label}`
       toast.success(message)
-      if (!signal?.aborted) speak(message)
       return message
     }
 
@@ -60,13 +55,11 @@ export default function Dashboard() {
         const message = await fetchWeatherSummary(city)
         if (signal?.aborted) return null
         toast.success(message, { id: 'weather-voice', duration: 8000 })
-        speak(message)
         return message
       } catch (err) {
         if (signal?.aborted) return null
         const message = err instanceof Error ? err.message : 'No pude consultar el clima'
         toast.error(message, { id: 'weather-voice' })
-        speak(message)
         return message
       }
     }
@@ -78,13 +71,11 @@ export default function Dashboard() {
       } else {
         toast.success(message)
       }
-      if (!signal?.aborted) speak(message)
       return message
     }
 
     const fallback = 'Comando no reconocido'
     toast.error(fallback)
-    if (!signal?.aborted) speak(fallback)
     return fallback
   }, [data, updateData])
 
