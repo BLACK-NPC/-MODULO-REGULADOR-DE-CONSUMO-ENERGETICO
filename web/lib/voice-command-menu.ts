@@ -22,10 +22,21 @@ export const VOICE_COMMAND_GROUPS = [
       { cmd: 'Ir a monitoreo', desc: 'Pantalla de monitoreo en tiempo real' },
       { cmd: 'Abrir alertas', desc: 'Seccion de alertas activas' },
       { cmd: 'Ir a configuraciones', desc: 'Ajustes del regulador' },
+      { cmd: 'Ir a inicio', desc: 'Panel principal del sistema' },
     ],
   },
   {
-    label: 'Ayuda',
+    label: 'Asistente',
+    commands: [
+      { cmd: 'Hola', desc: 'Saluda al asistente' },
+      { cmd: 'Ayuda', desc: 'Escucha que puedes decir' },
+      { cmd: 'Mas rapido', desc: 'Aumenta velocidad de voz' },
+      { cmd: 'Mas lento', desc: 'Reduce velocidad de voz' },
+      { cmd: 'Para la voz', desc: 'Detiene la respuesta de voz' },
+    ],
+  },
+  {
+    label: 'Menu',
     commands: [
       { cmd: 'Mostrar que decir', desc: 'Abre este menu de comandos' },
       { cmd: 'Ocultar menu', desc: 'Cierra el menu de comandos' },

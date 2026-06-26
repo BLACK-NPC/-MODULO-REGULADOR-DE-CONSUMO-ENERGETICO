@@ -13,6 +13,7 @@ import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
 import { executeVoiceIntent, PAGE_LABELS } from '@/lib/voice-commands'
 import { fetchWeatherSummary } from '@/lib/weather'
+import { stopSpeaking, getSpeechRate, setSpeechRate } from '@/lib/speech-synthesis'
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
@@ -29,6 +30,29 @@ export default function Dashboard() {
 
   const handleVoiceCommand = useCallback(async (intent: VoiceIntent, signal?: AbortSignal): Promise<string | null> => {
     if (signal?.aborted) return null
+
+    if (intent.type === 'GREET') {
+      return 'Hola! Soy el asistente del AVC-01. Di "ayuda" para ver los comandos disponibles.'
+    }
+
+    if (intent.type === 'HELP') {
+      return 'Puedes decir: enciende el motor, apaga el motor, modo automatico, ir a monitoreo, estado del sistema, cual es el setpoint, clima en Cali, entre otros.'
+    }
+
+    if (intent.type === 'TTS_STOP') {
+      stopSpeaking()
+      return null
+    }
+
+    if (intent.type === 'TTS_FASTER') {
+      const rate = setSpeechRate(getSpeechRate() + 0.2)
+      return `Velocidad ajustada a ${rate.toFixed(1)}`
+    }
+
+    if (intent.type === 'TTS_SLOWER') {
+      const rate = setSpeechRate(getSpeechRate() - 0.2)
+      return `Velocidad ajustada a ${rate.toFixed(1)}`
+    }
 
     if (intent.type === 'SHOW_COMMANDS') {
       setCommandsMenuOpen(true)

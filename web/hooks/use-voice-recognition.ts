@@ -3,24 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
 import { speak, stopSpeaking } from '@/lib/speech-synthesis'
+import { detectWakeWord, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
   | 'idle'
+  | 'wake'
   | 'listening'
   | 'processing'
   | 'speaking'
   | 'unsupported'
   | 'error'
 
-/** Tiempo sin hablar antes de apagar la sesion (como el ejemplo HTML de 15 s). */
+/** Tiempo sin hablar antes de apagar la sesion. */
 const INACTIVITY_TIMEOUT_MS = 15000
-/** Pausa tras terminar TTS antes de reabrir el microfono (Android). */
-const POST_TTS_DELAY_MS = 400
+/** Pausa tras terminar TTS antes de reabrir el microfono (Android/iOS). */
+const POST_TTS_DELAY_MS = 500
 /** Pausa antes de reiniciar recognition tras onend vacio. */
-const RESTART_DELAY_MS = 250
+const RESTART_DELAY_MS = 300
 
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
+  /** Si true, la primera frase debe contener una palabra clave (hey/ok/hola). */
+  requireWakeWord?: boolean
   onCommand: (
     intent: VoiceIntent,
     signal?: AbortSignal
@@ -30,6 +34,7 @@ interface UseVoiceRecognitionOptions {
 
 export function useVoiceRecognition({
   lang = 'es-CO',
+  requireWakeWord = false,
   onCommand,
   onSessionEnd,
 }: UseVoiceRecognitionOptions) {
@@ -42,6 +47,8 @@ export function useVoiceRecognition({
   const onCommandRef = useRef(onCommand)
   const onSessionEndRef = useRef(onSessionEnd)
   const sessionActiveRef = useRef(false)
+  /** true = esperando palabra clave antes de aceptar comandos */
+  const wakePhaseRef = useRef(false)
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const busyRef = useRef(false)
@@ -148,6 +155,26 @@ export function useVoiceRecognition({
 
   const processFinalTranscript = useCallback(
     async (finalText: string) => {
+      // --- Fase wake word ---
+      if (wakePhaseRef.current) {
+        const wakeWord = detectWakeWord(finalText)
+        if (!wakeWord) {
+          // No era palabra clave: ignorar y seguir escuchando.
+          scheduleInactivityTimeout()
+          tryStartListening()
+          return
+        }
+        // Palabra clave detectada: salir de fase wake, pasar a comando.
+        wakePhaseRef.current = false
+        setStatus('listening')
+        scheduleInactivityTimeout()
+        tryStartListening(POST_TTS_DELAY_MS)
+        return
+      }
+
+      // Quitar palabras clave que el usuario incluyera junto al comando.
+      const commandText = stripWakeWords(finalText) || finalText
+
       const generation = commandGenerationRef.current + 1
       commandGenerationRef.current = generation
 
@@ -158,7 +185,7 @@ export function useVoiceRecognition({
       setStatus('processing')
       clearInactivityTimer()
 
-      const intent = parseIntent(finalText)
+      const intent = parseIntent(commandText)
       let message: string | null = null
 
       try {
@@ -212,7 +239,7 @@ export function useVoiceRecognition({
 
       resumeListeningAfterSpeech()
     },
-    [clearInactivityTimer, lang, resumeListeningAfterSpeech]
+    [clearInactivityTimer, lang, resumeListeningAfterSpeech, scheduleInactivityTimeout, tryStartListening]
   )
 
   useEffect(() => {
@@ -347,19 +374,20 @@ export function useVoiceRecognition({
     busyRef.current = false
     pendingTranscriptRef.current = ''
     commandGenerationRef.current = 0
+    wakePhaseRef.current = requireWakeWord
     setTranscript('')
     setResponseText(null)
     setErrorMsg('')
 
     try {
       recognition.start()
-      setStatus('listening')
+      setStatus(requireWakeWord ? 'wake' : 'listening')
       scheduleInactivityTimeout()
     } catch {
       sessionActiveRef.current = false
       setStatus('idle')
     }
-  }, [status, stopSession, scheduleInactivityTimeout])
+  }, [status, stopSession, scheduleInactivityTimeout, requireWakeWord])
 
   const stopListening = useCallback(() => {
     stopSession()
@@ -379,7 +407,8 @@ export function useVoiceRecognition({
     startListening,
     stopListening,
     clearResponse,
-    isListening: status === 'listening',
+    isListening: status === 'listening' || status === 'wake',
+    isWakePhase: status === 'wake',
     isProcessing: status === 'processing' || status === 'speaking',
     isUnsupported: status === 'unsupported',
   }

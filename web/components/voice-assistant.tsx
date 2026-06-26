@@ -26,6 +26,11 @@ export type VoiceIntent =
   | { type: 'WEATHER'; city?: string; raw: string }
   | { type: 'SHOW_COMMANDS'; raw: string }
   | { type: 'HIDE_COMMANDS'; raw: string }
+  | { type: 'GREET'; raw: string }
+  | { type: 'HELP'; raw: string }
+  | { type: 'TTS_STOP'; raw: string }
+  | { type: 'TTS_FASTER'; raw: string }
+  | { type: 'TTS_SLOWER'; raw: string }
   | { type: 'UNKNOWN'; raw: string }
 
 interface VoiceAssistantProps {
@@ -81,6 +86,31 @@ function extractCity(text: string): string | undefined {
 
 export function parseIntent(transcript: string): VoiceIntent {
   const t = normalize(transcript)
+
+  // Saludo
+  if (/^(hola|hey|ok|oye|buenos dias|buenas tardes|buenas noches|buenas)$/.test(t)) {
+    return { type: 'GREET', raw: transcript }
+  }
+
+  // Ayuda
+  if (
+    /^ayuda$/.test(t) ||
+    /que puedo (decir|hacer|preguntarte)/.test(t) ||
+    /como (te uso|funciona|te llamo)/.test(t)
+  ) {
+    return { type: 'HELP', raw: transcript }
+  }
+
+  // Control de TTS
+  if (/(para|parar|detener|silencio|calla|callate)/.test(t) && /(voz|asistente|respuesta|audio)/.test(t)) {
+    return { type: 'TTS_STOP', raw: transcript }
+  }
+  if (/(mas rapido|habla rapido|acelera|speed up)/.test(t)) {
+    return { type: 'TTS_FASTER', raw: transcript }
+  }
+  if (/(mas lento|habla lento|despacio|slow down)/.test(t)) {
+    return { type: 'TTS_SLOWER', raw: transcript }
+  }
 
   if (
     /mostrar.*(que decir|comandos|opciones|ayuda)/.test(t) ||
