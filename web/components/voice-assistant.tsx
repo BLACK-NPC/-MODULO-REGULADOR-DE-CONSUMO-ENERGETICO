@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Mic, Loader2, Volume2, CheckCircle2, Waves } from 'lucide-react'
+import { useState } from 'react'
+import { Mic, Loader2, Volume2, CheckCircle2, Waves, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useVoiceRecognition } from '@/hooks/use-voice-recognition'
+import { findBestSensorMatch, matchFuzzyVoiceCommand } from '@/lib/voice-fuzzy-match'
+import { SENSORES_DISPONIBLES } from '@/lib/voice-connectors'
+import { VOICE_COMMAND_GROUPS } from '@/lib/voice-command-menu'
 
 export type DashboardPage =
   | 'home'
@@ -20,8 +23,25 @@ export type VoiceIntent =
   | { type: 'MODE_MANUAL'; raw: string }
   | { type: 'SETPOINT_UP'; value: number; raw: string }
   | { type: 'SETPOINT_DOWN'; value: number; raw: string }
+  | { type: 'SET_SETPOINT'; value: number; raw: string }
   | { type: 'SETPOINT_QUERY'; raw: string }
   | { type: 'SYSTEM_STATUS'; raw: string }
+  | { type: 'SYSTEM_HEALTH'; raw: string }
+  | { type: 'ALARMS_QUERY'; raw: string }
+  | { type: 'FIREBASE_STATUS'; raw: string }
+  | { type: 'SENSOR_ON'; sensor: string; raw: string }
+  | { type: 'SENSOR_OFF'; sensor: string; raw: string }
+  | { type: 'CONSUMPTION_CURRENT'; raw: string }
+  | { type: 'CONSUMPTION_VARIATION'; raw: string }
+  | { type: 'FAN_CONSUMPTION'; raw: string }
+  | { type: 'WIFI_NETWORK'; raw: string }
+  | { type: 'TIME_NOW'; raw: string }
+  | { type: 'DATE_TODAY'; raw: string }
+  | { type: 'MODE_AUTO_START'; raw: string }
+  | { type: 'MODE_AUTO_END'; raw: string }
+  | { type: 'MODE_MANUAL_START'; raw: string }
+  | { type: 'MODE_CURRENT'; raw: string }
+  | { type: 'UPTIME'; raw: string }
   | { type: 'NAVIGATE'; page: DashboardPage; raw: string }
   | { type: 'WEATHER'; city?: string; raw: string }
   | { type: 'SHOW_COMMANDS'; raw: string }
@@ -84,6 +104,16 @@ function extractCity(text: string): string | undefined {
   return undefined
 }
 
+function extractSensorName(text: string, prefixes: string[]): string | null {
+  const normalized = text.toLowerCase()
+  for (const prefix of prefixes) {
+    if (normalized.startsWith(prefix)) {
+      return text.slice(prefix.length).trim()
+    }
+  }
+  return null
+}
+
 export function parseIntent(transcript: string): VoiceIntent {
   const t = normalize(transcript)
 
@@ -134,8 +164,20 @@ export function parseIntent(transcript: string): VoiceIntent {
     if (/inicio|principal|home|panel/.test(t)) return { type: 'NAVIGATE', page: 'home', raw: transcript }
   }
 
-  if (/(clima|tiempo|pronostico|temperatura exterior)/.test(t)) {
+  if (/(clima|tiempo|pronostico|temperatura exterior)/.test(t) && !/(setpoint|configurad)/.test(t)) {
     return { type: 'WEATHER', city: extractCity(transcript), raw: transcript }
+  }
+
+  if (t.startsWith('encender') || t.startsWith('enciende')) {
+    const spoken = extractSensorName(t, ['encender', 'enciende'])
+    const sensor = findBestSensorMatch(spoken ?? t, SENSORES_DISPONIBLES)
+    if (sensor) return { type: 'SENSOR_ON', sensor, raw: transcript }
+  }
+
+  if (t.startsWith('apagar') || t.startsWith('apaga')) {
+    const spoken = extractSensorName(t, ['apagar', 'apaga'])
+    const sensor = findBestSensorMatch(spoken ?? t, SENSORES_DISPONIBLES)
+    if (sensor) return { type: 'SENSOR_OFF', sensor, raw: transcript }
   }
 
   if (/(enciende|encender|prende|prender|arranca|activa|inicia)/.test(t) && /(motor|ventilador|sistema|modulo)/.test(t)) {
@@ -146,12 +188,20 @@ export function parseIntent(transcript: string): VoiceIntent {
     return { type: 'MOTOR_OFF', raw: transcript }
   }
 
-  if (/modo/.test(t) && /(automatico|auto)/.test(t)) {
+  if (/modo/.test(t) && /(automatico|auto)/.test(t) && !/(inicio|empezo|entro|apago|termino|salio)/.test(t)) {
     return { type: 'MODE_AUTO', raw: transcript }
   }
 
-  if (/modo/.test(t) && /manual/.test(t)) {
+  if (/modo/.test(t) && /manual/.test(t) && !/(inicio|empezo|entro)/.test(t)) {
     return { type: 'MODE_MANUAL', raw: transcript }
+  }
+
+  if (
+    /(pon|ajusta|establece|configura|cambia)/.test(t) &&
+    /(setpoint|temperatura configurada|temperatura en)/.test(t)
+  ) {
+    const value = extractNumber(t)
+    if (value !== null) return { type: 'SET_SETPOINT', value, raw: transcript }
   }
 
   if (/(sube|subir|aumenta|aumentar|incrementa|incrementar)/.test(t) && /(setpoint|punto|temperatura|grados)/.test(t)) {
@@ -164,8 +214,67 @@ export function parseIntent(transcript: string): VoiceIntent {
     if (value !== null) return { type: 'SETPOINT_DOWN', value, raw: transcript }
   }
 
-  if (/(cual|que).*(setpoint|punto)|setpoint actual|valor del setpoint/.test(t)) {
+  if (/(cual|que).*(setpoint|punto)|setpoint actual|valor del setpoint|temperatura configurada/.test(t)) {
     return { type: 'SETPOINT_QUERY', raw: transcript }
+  }
+
+  if (/(hay|tengo|existen|muestrame|estado de las?).*alarma/.test(t)) {
+    return { type: 'ALARMS_QUERY', raw: transcript }
+  }
+
+  if (/(firebase|conexion).*(conectad|activo|hay)|esta conectad.*firebase|hay conexion con firebase/.test(t)) {
+    return { type: 'FIREBASE_STATUS', raw: transcript }
+  }
+
+  if (/(consumo actual|cuanto estoy consumiendo|cuanta potencia se esta usando)/.test(t)) {
+    return { type: 'CONSUMPTION_CURRENT', raw: transcript }
+  }
+
+  if (/(variacion|variado|ha cambiado).*(potencia|consumo)/.test(t)) {
+    return { type: 'CONSUMPTION_VARIATION', raw: transcript }
+  }
+
+  if (/(consumo|potencia).*(ventilador|motor)/.test(t) || /cuanto consume el ventilador/.test(t)) {
+    return { type: 'FAN_CONSUMPTION', raw: transcript }
+  }
+
+  if (/(red wifi|wifi|conexion actual|a que red)/.test(t) && !/firebase/.test(t)) {
+    return { type: 'WIFI_NETWORK', raw: transcript }
+  }
+
+  if (/^(que hora es|dime la hora|hora actual)/.test(t) || (/que hora/.test(t) && !/inicio|empezo|entro|apago/.test(t))) {
+    return { type: 'TIME_NOW', raw: transcript }
+  }
+
+  if (/^(que dia es hoy|dime la fecha|fecha actual|que fecha es hoy)/.test(t)) {
+    return { type: 'DATE_TODAY', raw: transcript }
+  }
+
+  if (/modo automatico/.test(t) && /(inicio|empezo|entro)/.test(t)) {
+    return { type: 'MODE_AUTO_START', raw: transcript }
+  }
+
+  if (/modo automatico/.test(t) && /(apago|termino|salio|desactiv)/.test(t)) {
+    return { type: 'MODE_AUTO_END', raw: transcript }
+  }
+
+  if (/modo manual/.test(t) && /(inicio|empezo|entro)/.test(t)) {
+    return { type: 'MODE_MANUAL_START', raw: transcript }
+  }
+
+  if (/en que modo|que modo esta|modo automatico o manual/.test(t)) {
+    return { type: 'MODE_CURRENT', raw: transcript }
+  }
+
+  if (/(tiempo lleva encendido|tiempo de actividad|desde cuando esta activo|hace cuanto se encendio)/.test(t)) {
+    return { type: 'UPTIME', raw: transcript }
+  }
+
+  if (
+    /(estado general|diagnostico|todo funcionando|hay algun error|como esta el sistema)/.test(t) &&
+    !/(motor|ventilador)/.test(t)
+  ) {
+    return { type: 'SYSTEM_HEALTH', raw: transcript }
   }
 
   if (/(estado|status|como esta|reporte|informe)/.test(t) && /(sistema|modulo|motor|todo)/.test(t)) {
@@ -176,10 +285,47 @@ export function parseIntent(transcript: string): VoiceIntent {
     return { type: 'SYSTEM_STATUS', raw: transcript }
   }
 
+  const fuzzy = matchFuzzyVoiceCommand(t)
+  if (fuzzy) {
+    switch (fuzzy.id) {
+      case 'ALARMS_QUERY':
+        return { type: 'ALARMS_QUERY', raw: transcript }
+      case 'FIREBASE_STATUS':
+        return { type: 'FIREBASE_STATUS', raw: transcript }
+      case 'CONSUMPTION_CURRENT':
+        return { type: 'CONSUMPTION_CURRENT', raw: transcript }
+      case 'CONSUMPTION_VARIATION':
+        return { type: 'CONSUMPTION_VARIATION', raw: transcript }
+      case 'FAN_CONSUMPTION':
+        return { type: 'FAN_CONSUMPTION', raw: transcript }
+      case 'WIFI_NETWORK':
+        return { type: 'WIFI_NETWORK', raw: transcript }
+      case 'TIME_NOW':
+        return { type: 'TIME_NOW', raw: transcript }
+      case 'DATE_TODAY':
+        return { type: 'DATE_TODAY', raw: transcript }
+      case 'MODE_AUTO_START':
+        return { type: 'MODE_AUTO_START', raw: transcript }
+      case 'MODE_AUTO_END':
+        return { type: 'MODE_AUTO_END', raw: transcript }
+      case 'MODE_MANUAL_START':
+        return { type: 'MODE_MANUAL_START', raw: transcript }
+      case 'MODE_CURRENT':
+        return { type: 'MODE_CURRENT', raw: transcript }
+      case 'UPTIME':
+        return { type: 'UPTIME', raw: transcript }
+      case 'SYSTEM_HEALTH':
+        return { type: 'SYSTEM_HEALTH', raw: transcript }
+      case 'SETPOINT_QUERY':
+        return { type: 'SETPOINT_QUERY', raw: transcript }
+    }
+  }
+
   return { type: 'UNKNOWN', raw: transcript }
 }
 
 export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded = false }: VoiceAssistantProps) {
+  const [commandsOpen, setCommandsOpen] = useState(false)
   const {
     status,
     transcript,
@@ -199,7 +345,7 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
         className
       )}
       role="region"
-      aria-label="Asistente de voz"
+      aria-label="Control por voz"
     >
       {!embedded && (
         <div className="flex items-center gap-3">
@@ -207,8 +353,8 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
             <Volume2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold leading-tight">Asistente de Voz</h3>
-            <p className="text-xs text-muted-foreground">Di &quot;mostrar que decir&quot; para ver comandos</p>
+            <h3 className="font-semibold leading-tight">Control por voz</h3>
+            <p className="text-xs text-muted-foreground">Comandos hablados para el sistema EcoPulse</p>
           </div>
         </div>
       )}
@@ -261,6 +407,52 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
           {isUnsupported && 'Tu navegador no soporta reconocimiento de voz'}
         </span>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setCommandsOpen((open) => !open)}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        aria-expanded={commandsOpen}
+        aria-controls="voice-commands-panel"
+      >
+        {commandsOpen ? (
+          <>
+            <ChevronUp className="h-4 w-4" />
+            Ocultar comandos
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-4 w-4" />
+            Ver comandos disponibles
+          </>
+        )}
+      </button>
+
+      {commandsOpen && (
+        <div
+          id="voice-commands-panel"
+          className="max-h-72 overflow-y-auto rounded-lg border border-border bg-secondary/30 p-3 space-y-3"
+        >
+          {VOICE_COMMAND_GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500/80 px-1">
+                {group.label}
+              </p>
+              <div className="space-y-1">
+                {group.commands.map(({ cmd, desc }) => (
+                  <div
+                    key={cmd}
+                    className="rounded-md border border-border/60 bg-card/60 px-3 py-2"
+                  >
+                    <p className="text-xs font-medium text-foreground">{cmd}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {transcript && (
         <div className="rounded-lg bg-secondary/50 p-3">

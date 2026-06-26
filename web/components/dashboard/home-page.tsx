@@ -243,7 +243,7 @@ export function HomePage({
       <section
         id="voice-assistant-section"
         ref={voiceSectionRef}
-        aria-label="Asistente de voz"
+        aria-label="Control por voz"
       >
         <Card className="bg-card border-emerald-500/30">
           <CardContent className="p-6 space-y-4">
@@ -252,9 +252,9 @@ export function HomePage({
                 <Mic className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Asistente de voz</h3>
+                <h3 className="text-lg font-semibold text-foreground">Control por voz</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Controla el sistema por voz desde aqui. En otras pantallas usa el boton flotante.
+                  Comandos hablados para EcoPulse. En otras pantallas usa el boton flotante.
                 </p>
               </div>
             </div>

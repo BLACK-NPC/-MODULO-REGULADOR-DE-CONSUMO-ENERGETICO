@@ -11,7 +11,8 @@ import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
-import { executeVoiceIntent, PAGE_LABELS } from '@/lib/voice-commands'
+import { executeVoiceIntent, buildVoiceConnectorsContext, buildVoiceQueryMessage, PAGE_LABELS, VOICE_HELP_SUMMARY } from '@/lib/voice-commands'
+import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
 import { stopSpeaking, getSpeechRate, setSpeechRate } from '@/lib/speech-synthesis'
 import { Loader2 } from 'lucide-react'
@@ -32,11 +33,11 @@ export default function Dashboard() {
     if (signal?.aborted) return null
 
     if (intent.type === 'GREET') {
-      return 'Hola! Soy el asistente del AVC-01. Di "ayuda" para ver los comandos disponibles.'
+      return `Hola. ${APP_NAME} listo. Di "ayuda" para escuchar los comandos disponibles.`
     }
 
     if (intent.type === 'HELP') {
-      return 'Puedes decir: enciende el motor, apaga el motor, modo automatico, ir a monitoreo, estado del sistema, cual es el setpoint, clima en Cali, entre otros.'
+      return VOICE_HELP_SUMMARY
     }
 
     if (intent.type === 'TTS_STOP') {
@@ -88,20 +89,23 @@ export default function Dashboard() {
       }
     }
 
+    const connectorsCtx = buildVoiceConnectorsContext(data, isDemo, lastHeartbeatAt)
+    const queryMessage = buildVoiceQueryMessage(intent, connectorsCtx)
+    if (queryMessage) {
+      toast.info(queryMessage, { duration: 6000 })
+      return queryMessage
+    }
+
     const message = executeVoiceIntent(intent, updateData, data)
     if (message) {
-      if (intent.type === 'SYSTEM_STATUS' || intent.type === 'SETPOINT_QUERY') {
-        toast.info(message, { duration: 6000 })
-      } else {
-        toast.success(message)
-      }
+      toast.success(message)
       return message
     }
 
-    const fallback = 'Comando no reconocido'
+    const fallback = 'Comando no reconocido. Di "ayuda" para ver opciones.'
     toast.error(fallback)
     return fallback
-  }, [data, updateData])
+  }, [data, updateData, isDemo, lastHeartbeatAt])
 
   if (loading) {
     return (
@@ -168,8 +172,8 @@ export default function Dashboard() {
         <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-foreground">AVC-01 Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Sistema de Ventilacion Adaptativa</p>
+              <h1 className="text-lg font-bold text-foreground">{APP_NAME}</h1>
+              <p className="text-xs text-muted-foreground">{APP_TAGLINE}</p>
             </div>
             <div className="flex items-center gap-2">
               {isDemo ? (
@@ -199,7 +203,7 @@ export default function Dashboard() {
 
         <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto shrink-0">
           <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>AVC-01 - Adaptive Ventilation Controller | Proyecto de Grado 2024</p>
+            <p>{APP_NAME} | Modulo regulador de consumo energetico | Proyecto de Grado</p>
             <p>Desarrollado con Next.js + Firebase Realtime Database</p>
           </div>
         </footer>

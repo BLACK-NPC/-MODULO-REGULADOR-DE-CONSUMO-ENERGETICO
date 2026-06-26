@@ -3,20 +3,21 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 import { PwaRegister } from '@/components/pwa-register'
+import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'AVC-01 | Adaptive Ventilation Controller',
-  description: 'Sistema embebido de control y monitoreo de ventilacion adaptativa con ESP32-S3, pantalla tactil HMI, sensores IoT y conectividad Firebase.',
-  applicationName: 'HMI-IA',
-  generator: 'v0.app',
+  title: `${APP_NAME} | ${APP_TAGLINE}`,
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  generator: APP_NAME,
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    title: 'HMI-IA',
+    title: APP_NAME,
     statusBarStyle: 'black-translucent',
   },
   icons: {
@@ -30,8 +31,8 @@ export const metadata: Metadata = {
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/icono-192.png',
+        type: 'image/png',
       },
     ],
     apple: '/apple-icon.png',
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#171717',
+  themeColor: '#2EAF4A',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

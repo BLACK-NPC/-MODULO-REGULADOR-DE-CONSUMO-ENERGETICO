@@ -105,7 +105,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         <CardHeader>
           <CardTitle className="text-lg text-foreground flex items-center gap-2">
             <Mic className="w-5 h-5" />
-            Asistente de voz
+            Control por voz
           </CardTitle>
         </CardHeader>
         <CardContent>

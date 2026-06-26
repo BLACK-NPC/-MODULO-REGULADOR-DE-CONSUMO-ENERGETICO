@@ -1,7 +1,9 @@
 'use client'
 
+import Image from 'next/image'
 import { Home, Activity, Settings, AlertTriangle, Cloud } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 
 type Page = 'home' | 'monitoreo' | 'configuraciones' | 'alertas' | 'datos-externos'
 
@@ -26,12 +28,18 @@ export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps
       <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border h-screen fixed left-0 top-0">
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">A</span>
+            <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0">
+              <Image
+                src="/icono-192.png"
+                alt={APP_NAME}
+                width={40}
+                height={40}
+                className="h-full w-full object-cover"
+              />
             </div>
             <div>
-              <h1 className="font-bold text-lg text-foreground">AVC-01</h1>
-              <p className="text-xs text-muted-foreground">Control Panel</p>
+              <h1 className="font-bold text-lg text-foreground">{APP_NAME}</h1>
+              <p className="text-xs text-muted-foreground">{APP_TAGLINE}</p>
             </div>
           </div>
         </div>

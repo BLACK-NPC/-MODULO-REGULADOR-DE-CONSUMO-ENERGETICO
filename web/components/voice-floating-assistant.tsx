@@ -419,8 +419,8 @@ export function VoiceFloatingAssistant({
           onClick={handleFabClick}
           aria-label={
             isListening || isProcessing
-              ? 'Detener asistente de voz'
-              : 'Activar asistente de voz'
+              ? 'Detener control por voz'
+              : 'Activar control por voz'
           }
           style={{
             width: FAB_SIZE,

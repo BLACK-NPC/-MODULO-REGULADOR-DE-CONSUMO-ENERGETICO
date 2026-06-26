@@ -118,7 +118,7 @@ export function useVoiceRecognition({
         recognitionRef.current?.stop()
       }
 
-      void speak('Asistente desactivado por falta de respuesta.', lang).finally(() => {
+      void speak('Control por voz desactivado por falta de respuesta.', lang).finally(() => {
         busyRef.current = false
         setStatus('idle')
         setTranscript('')
