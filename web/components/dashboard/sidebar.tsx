@@ -1,9 +1,7 @@
 'use client'
 
-import Image from 'next/image'
 import { Home, Activity, Settings, AlertTriangle, Cloud } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 
 type Page = 'home' | 'monitoreo' | 'configuraciones' | 'alertas' | 'datos-externos'
 
@@ -14,91 +12,55 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: 'home' as Page, label: 'Home', icon: Home },
+  { id: 'home' as Page, label: 'Inicio', icon: Home },
   { id: 'monitoreo' as Page, label: 'Monitoreo', icon: Activity },
-  { id: 'configuraciones' as Page, label: 'Configuraciones', icon: Settings },
+  { id: 'configuraciones' as Page, label: 'Config', icon: Settings },
   { id: 'alertas' as Page, label: 'Alertas', icon: AlertTriangle },
-  { id: 'datos-externos' as Page, label: 'Datos Externos', icon: Cloud },
+  { id: 'datos-externos' as Page, label: 'Clima', icon: Cloud },
 ]
 
-export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps) {
-  return (
-    <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border h-screen fixed left-0 top-0">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0">
-              <Image
-                src="/icono-192.png"
-                alt={APP_NAME}
-                width={40}
-                height={40}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg text-foreground">{APP_NAME}</h1>
-              <p className="text-xs text-muted-foreground">{APP_TAGLINE}</p>
-            </div>
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
-            {navItems.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => onNavigate(item.id)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200',
-                    currentPage === item.id
-                      ? 'bg-primary text-primary-foreground shadow-lg'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                  )}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-secondary">
-            <div className={cn(
-              'w-3 h-3 rounded-full',
-              wifiConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-            )} />
-            <span className="text-sm text-muted-foreground">
-              {wifiConnected ? 'Conectado' : 'Desconectado'}
-            </span>
-          </div>
-        </div>
-      </aside>
+const titles: Record<Page, string> = {
+  home: 'HOME',
+  monitoreo: 'MONITOREO',
+  configuraciones: 'CONFIGURACIONES',
+  alertas: 'ALERTAS',
+  'datos-externos': 'CLIMA',
+}
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
-        <ul className="flex justify-around py-2">
-          {navItems.map((item) => (
-            <li key={item.id}>
+export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps) {
+  const clock = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <header className="sticky top-0 z-40 bg-white border-b border-[#d7dde5]">
+      <div className="flex items-center gap-2 px-3 h-14">
+        <nav className="flex items-center gap-1.5">
+          {navItems.map((item) => {
+            const active = currentPage === item.id
+            return (
               <button
+                key={item.id}
                 onClick={() => onNavigate(item.id)}
+                title={item.label}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all',
-                  currentPage === item.id
-                    ? 'text-primary'
-                    : 'text-muted-foreground'
+                  'h-9 w-9 rounded-md border flex items-center justify-center',
+                  active
+                    ? 'bg-[#101828] text-white border-[#101828]'
+                    : 'bg-[#f7f8fa] text-[#5b6472] border-[#d7dde5]'
                 )}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-xs font-medium">{item.label}</span>
+                <item.icon className="w-4 h-4" />
               </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </>
+            )
+          })}
+        </nav>
+        <h1 className="flex-1 text-center text-sm font-extrabold tracking-wide text-[#101828]">
+          {titles[currentPage]}
+        </h1>
+        <div className="flex items-center gap-2 min-w-[88px] justify-end">
+          <span className={cn('w-2.5 h-2.5 rounded-full', wifiConnected ? 'bg-[#22a35a]' : 'bg-[#D50000]')} />
+          <span className="text-xs font-bold text-[#5b6472]">{clock}</span>
+        </div>
+      </div>
+    </header>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { HomePage } from '@/components/dashboard/home-page'
@@ -11,10 +11,18 @@ import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
-import { executeVoiceIntent, buildVoiceConnectorsContext, buildVoiceQueryMessage, PAGE_LABELS, VOICE_HELP_SUMMARY } from '@/lib/voice-commands'
-import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
+import {
+  buildVoiceCommandFields,
+  buildVoiceCommandValidationMessage,
+  buildVoiceConnectorsContext,
+  buildVoiceQueryMessage,
+  PAGE_LABELS,
+  VOICE_HELP_SUMMARY,
+} from '@/lib/voice-commands'
+import { getHmiConnectionState, type HmiCommandResult } from '@/lib/hmi-command'
+import { APP_NAME } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
-import { stopSpeaking, getSpeechRate, setSpeechRate } from '@/lib/speech-synthesis'
+import { stopSpeaking, getSpeechRate, setSpeechRate, speak } from '@/lib/speech-synthesis'
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
@@ -23,7 +31,29 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
   const [voiceSectionVisible, setVoiceSectionVisible] = useState(false)
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
-  const { data, loading, error, updateData, isDemo, lastHeartbeatAt } = useAVCData()
+  const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
+
+  const hmiReachable = useMemo(() => {
+    return getHmiConnectionState(isDemo, lastHeartbeatAt, data.wifi.conectado) === 'online' || isDemo
+  }, [isDemo, lastHeartbeatAt, data.wifi.conectado])
+
+  const notifyHmiResult = useCallback((result: HmiCommandResult) => {
+    if (!result.mensaje) return
+
+    if (result.ok) {
+      toast.success(result.mensaje)
+      return
+    }
+
+    toast.error(result.mensaje, { duration: 8000 })
+    void speak(result.mensaje)
+  }, [])
+
+  const handleHmiUpdate = useCallback(async (path: string, value: unknown) => {
+    const result = await commandUpdate(path, value)
+    notifyHmiResult(result)
+    return result
+  }, [commandUpdate, notifyHmiResult])
 
   const handleVoiceSectionVisibleChange = useCallback((visible: boolean) => {
     setVoiceSectionVisible(visible)
@@ -96,16 +126,32 @@ export default function Dashboard() {
       return queryMessage
     }
 
-    const message = executeVoiceIntent(intent, updateData, data)
-    if (message) {
-      toast.success(message)
-      return message
+    const validationMessage = buildVoiceCommandValidationMessage(intent)
+    if (validationMessage) {
+      toast.error(validationMessage)
+      return validationMessage
+    }
+
+    const commandFields = buildVoiceCommandFields(intent, data)
+    if (commandFields) {
+      toast.loading('Enviando comando al HMI...', { id: 'hmi-cmd' })
+      const result = await sendHmiCommand(commandFields)
+      if (signal?.aborted) return null
+      toast.dismiss('hmi-cmd')
+
+      if (result.ok) {
+        toast.success(result.mensaje)
+      } else {
+        toast.error(result.mensaje, { duration: 8000 })
+      }
+
+      return result.mensaje
     }
 
     const fallback = 'Comando no reconocido. Di "ayuda" para ver opciones.'
     toast.error(fallback)
     return fallback
-  }, [data, updateData, isDemo, lastHeartbeatAt])
+  }, [data, sendHmiCommand, isDemo, lastHeartbeatAt])
 
   if (loading) {
     return (
@@ -141,15 +187,17 @@ export default function Dashboard() {
         return (
           <HomePage
             data={data}
-            onUpdate={updateData}
+            hmiReachable={hmiReachable}
+            isDemo={isDemo}
+            onUpdate={handleHmiUpdate}
             onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
             onVoiceCommand={handleVoiceCommand}
           />
         )
       case 'monitoreo':
-        return <MonitoreoPage data={data} onUpdate={updateData} />
+        return <MonitoreoPage data={data} onUpdate={handleHmiUpdate} />
       case 'configuraciones':
-        return <ConfiguracionesPage data={data} onUpdate={updateData} />
+        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} />
       case 'alertas':
         return <AlertasPage data={data} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
       case 'datos-externos':
@@ -158,7 +206,9 @@ export default function Dashboard() {
         return (
           <HomePage
             data={data}
-            onUpdate={updateData}
+            hmiReachable={hmiReachable}
+            isDemo={isDemo}
+            onUpdate={handleHmiUpdate}
             onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
             onVoiceCommand={handleVoiceCommand}
           />
@@ -168,45 +218,21 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="lg:ml-64 bg-card border-b border-border px-4 py-3 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-bold text-foreground">{APP_NAME}</h1>
-              <p className="text-xs text-muted-foreground">{APP_TAGLINE}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {isDemo ? (
-                <span className="px-2 py-1 rounded-full text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  Modo Demo
-                </span>
-              ) : (
-                <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
-                  Firebase Conectado
-                </span>
-              )}
-            </div>
-          </div>
-        </header>
-
+      <div className="min-h-screen bg-[#F3F4F6] text-[#101828] flex flex-col">
         <Sidebar
           currentPage={currentPage}
           onNavigate={setCurrentPage}
           wifiConnected={data.wifi.conectado}
         />
 
-        <main className="lg:ml-64 flex-1 pb-20 lg:pb-0">
-          <section className="p-4 md:p-6 lg:p-8">
+        <main className="flex-1">
+          <section className="p-4 md:p-6 max-w-5xl mx-auto w-full">
+            {isDemo ? (
+              <p className="mb-3 text-xs font-bold text-[#5b6472]">Modo demo</p>
+            ) : null}
             {renderPage()}
           </section>
         </main>
-
-        <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto shrink-0">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>{APP_NAME} | Modulo regulador de consumo energetico | Proyecto de Grado</p>
-            <p>Desarrollado con Next.js + Firebase Realtime Database</p>
-          </div>
-        </footer>
       </div>
 
       <VoiceFloatingAssistant

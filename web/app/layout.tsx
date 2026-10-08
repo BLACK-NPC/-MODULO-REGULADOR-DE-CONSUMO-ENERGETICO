@@ -57,7 +57,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <PwaRegister />
         {children}
-        <Toaster theme="dark" richColors position="top-center" />
+        <Toaster theme="light" richColors position="top-center" />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
