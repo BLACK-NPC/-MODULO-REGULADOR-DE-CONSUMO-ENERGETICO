@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { database, ref, onValue, set, update, isFirebaseConfigured, serverTimestamp } from '@/lib/firebase'
+import {
+  executeHmiCommand,
+  pathToCommandFields,
+  type HmiCommandResult,
+} from '@/lib/hmi-command'
 
 export interface AVCHistoryDay {
   dayKey?: number
@@ -12,6 +17,8 @@ export interface AVCHistoryDay {
 
 export interface AVCData {
   heartbeat: number
+  version?: number
+  timestamp?: number
   temperatura: number
   humedad: number
   potencia: number
@@ -67,8 +74,14 @@ function normalizeHistorico(value: unknown): AVCData['historico'] {
   }, {})
 }
 
-function normalizeAVCData(value: unknown): AVCData {
+function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | null {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const incomingVersion = toNumber(source.version, 0)
+
+  if (incomingVersion > 0 && incomingVersion < lastAcceptedVersion) {
+    return null
+  }
+
   const wifi = source.wifi && typeof source.wifi === 'object' ? (source.wifi as Record<string, unknown>) : {}
   const config = source.config && typeof source.config === 'object' ? (source.config as Record<string, unknown>) : {}
   const estado = source.estado === 'running' ? 'running' : 'stopped'
@@ -76,8 +89,10 @@ function normalizeAVCData(value: unknown): AVCData {
 
   return {
     heartbeat: toNumber(source.heartbeat),
-    temperatura: toNumber(source.temperatura),
-    humedad: toNumber(source.humedad),
+    version: incomingVersion > 0 ? incomingVersion : undefined,
+    timestamp: toNumber(source.timestamp, 0) || undefined,
+    temperatura: Math.round(toNumber(source.temperatura) * 10) / 10,
+    humedad: Math.round(toNumber(source.humedad) * 10) / 10,
     potencia: toNumber(source.potencia),
     movimiento: toBoolean(source.movimiento),
     velocidad: toNumber(source.velocidad),
@@ -101,11 +116,11 @@ function normalizeAVCData(value: unknown): AVCData {
 
 function toCommandPath(path: string): string | null {
   if (path === 'estado' || path === 'modo' || path === 'velocidad' || path === 'setpoint') {
-    return `comandos/${path}`
+    return `comandos/solicitud/${path}`
   }
 
   if (path.startsWith('config/')) {
-    return `comandos/${path}`
+    return `comandos/solicitud/${path}`
   }
 
   return null
@@ -175,6 +190,7 @@ export function useAVCData() {
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
   const lastHeartbeatValueRef = useRef<number | null>(null)
   const lastHeartbeatAtRef = useRef<number | null>(null)
+  const lastAcceptedVersionRef = useRef(0)
 
   useEffect(() => {
     if (!isFirebaseConfigured || !database) {
@@ -189,7 +205,15 @@ export function useAVCData() {
       avcRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          const normalizedData = normalizeAVCData(snapshot.val())
+          const normalizedData = normalizeAVCData(snapshot.val(), lastAcceptedVersionRef.current)
+          if (!normalizedData) {
+            return
+          }
+
+          if (normalizedData.version && normalizedData.version > lastAcceptedVersionRef.current) {
+            lastAcceptedVersionRef.current = normalizedData.version
+          }
+
           setData(normalizedData)
 
           if (lastHeartbeatValueRef.current !== normalizedData.heartbeat || lastHeartbeatAtRef.current === null) {
@@ -240,7 +264,7 @@ export function useAVCData() {
         const avcRef = ref(database, 'avc01')
         await update(avcRef, {
           [commandPath]: value,
-          'comandos/ts': serverTimestamp(),
+          'comandos/solicitud/ts': serverTimestamp(),
         })
         return
       }
@@ -268,5 +292,40 @@ export function useAVCData() {
     }
   }, [isDemo])
 
-  return { data, loading, error, updateData, updateMultiple, isDemo, lastHeartbeatAt }
+  const applyDemoFields = useCallback(async (fields: Record<string, unknown>) => {
+    for (const [path, value] of Object.entries(fields)) {
+      await updateData(path, value)
+    }
+  }, [updateData])
+
+  const sendHmiCommand = useCallback(async (fields: Record<string, unknown>): Promise<HmiCommandResult> => {
+    return executeHmiCommand({
+      fields,
+      isDemo,
+      lastHeartbeatAt,
+      hmiWifiConnected: data.wifi.conectado,
+      onDemoApply: applyDemoFields,
+    })
+  }, [isDemo, lastHeartbeatAt, data.wifi.conectado, applyDemoFields])
+
+  const commandUpdate = useCallback(async (path: string, value: unknown): Promise<HmiCommandResult> => {
+    const fields = pathToCommandFields(path, value)
+    if (!fields) {
+      await updateData(path, value)
+      return { ok: true, mensaje: '' }
+    }
+    return sendHmiCommand(fields)
+  }, [sendHmiCommand, updateData])
+
+  return {
+    data,
+    loading,
+    error,
+    updateData,
+    updateMultiple,
+    sendHmiCommand,
+    commandUpdate,
+    isDemo,
+    lastHeartbeatAt,
+  }
 }

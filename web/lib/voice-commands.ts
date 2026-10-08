@@ -127,80 +127,98 @@ export function buildVoiceQueryMessage(
   }
 }
 
-export function executeVoiceIntent(
+export function buildVoiceCommandFields(
   intent: VoiceIntent,
-  onUpdate: (path: string, value: unknown) => void,
   data: AVCData,
-): string | null {
+): Record<string, unknown> | null {
   switch (intent.type) {
     case 'MOTOR_ON':
-    case 'SENSOR_ON': {
-      if (intent.type === 'SENSOR_ON' && isReadOnlySensor(intent.sensor)) {
-        return `${intent.sensor} es solo lectura, no se puede encender.`
-      }
-      if (intent.type === 'SENSOR_ON' && !isActuatorSensor(intent.sensor)) {
-        return `No reconozco el actuador ${intent.sensor}.`
-      }
-      onUpdate('estado', 'running')
-      return intent.type === 'SENSOR_ON'
-        ? `Listo, encendi ${intent.sensor}.`
-        : 'Motor encendido'
-    }
+      return { estado: 'running' }
     case 'MOTOR_OFF':
+      return { estado: 'stopped' }
+    case 'SENSOR_ON': {
+      if (isReadOnlySensor(intent.sensor)) {
+        return null
+      }
+      if (!isActuatorSensor(intent.sensor)) {
+        return null
+      }
+      return { estado: 'running' }
+    }
     case 'SENSOR_OFF': {
-      if (intent.type === 'SENSOR_OFF' && isReadOnlySensor(intent.sensor)) {
-        return `${intent.sensor} es solo lectura, no se puede apagar.`
+      if (isReadOnlySensor(intent.sensor)) {
+        return null
       }
-      if (intent.type === 'SENSOR_OFF' && !isActuatorSensor(intent.sensor)) {
-        return `No reconozco el actuador ${intent.sensor}.`
+      if (!isActuatorSensor(intent.sensor)) {
+        return null
       }
-      onUpdate('estado', 'stopped')
-      return intent.type === 'SENSOR_OFF'
-        ? `Listo, apague ${intent.sensor}.`
-        : 'Motor apagado'
+      return { estado: 'stopped' }
     }
     case 'MODE_AUTO':
-      onUpdate('modo', 'AUTOMATICO')
-      return 'Modo automatico activado'
+      return { modo: 'AUTOMATICO' }
     case 'MODE_MANUAL':
-      onUpdate('modo', 'MANUAL')
-      return 'Modo manual activado'
+      return { modo: 'MANUAL' }
     case 'SET_SETPOINT':
     case 'SETPOINT_UP':
     case 'SETPOINT_DOWN': {
       const value = Math.min(40, Math.max(0, intent.value))
-      onUpdate('setpoint', value)
-      return intent.type === 'SET_SETPOINT'
-        ? `Listo, configure el setpoint en ${value} grados.`
-        : `Setpoint ajustado a ${value}°C`
+      return { setpoint: value }
     }
-    case 'NAVIGATE':
-    case 'WEATHER':
-    case 'SHOW_COMMANDS':
-    case 'HIDE_COMMANDS':
-    case 'GREET':
-    case 'HELP':
-    case 'TTS_STOP':
-    case 'TTS_FASTER':
-    case 'TTS_SLOWER':
-    case 'ALARMS_QUERY':
-    case 'FIREBASE_STATUS':
-    case 'SETPOINT_QUERY':
-    case 'CONSUMPTION_CURRENT':
-    case 'CONSUMPTION_VARIATION':
-    case 'FAN_CONSUMPTION':
-    case 'WIFI_NETWORK':
-    case 'TIME_NOW':
-    case 'DATE_TODAY':
-    case 'MODE_AUTO_START':
-    case 'MODE_AUTO_END':
-    case 'MODE_MANUAL_START':
-    case 'MODE_CURRENT':
-    case 'UPTIME':
-    case 'SYSTEM_HEALTH':
-    case 'SYSTEM_STATUS':
-    case 'UNKNOWN':
+    default:
       return null
+  }
+}
+
+export function buildVoiceCommandValidationMessage(intent: VoiceIntent): string | null {
+  switch (intent.type) {
+    case 'SENSOR_ON':
+      if (isReadOnlySensor(intent.sensor)) {
+        return `${intent.sensor} es solo lectura, no se puede encender.`
+      }
+      if (!isActuatorSensor(intent.sensor)) {
+        return `No reconozco el actuador ${intent.sensor}.`
+      }
+      return null
+    case 'SENSOR_OFF':
+      if (isReadOnlySensor(intent.sensor)) {
+        return `${intent.sensor} es solo lectura, no se puede apagar.`
+      }
+      if (!isActuatorSensor(intent.sensor)) {
+        return `No reconozco el actuador ${intent.sensor}.`
+      }
+      return null
+    default:
+      return null
+  }
+}
+
+export function isVoiceActionIntent(intent: VoiceIntent): boolean {
+  return buildVoiceCommandFields(intent, {} as AVCData) !== null
+}
+
+export function buildVoiceActionAckMessage(
+  intent: VoiceIntent,
+  fields: Record<string, unknown>,
+): string {
+  switch (intent.type) {
+    case 'MOTOR_ON':
+      return 'Motor encendido (modo demo).'
+    case 'MOTOR_OFF':
+      return 'Motor apagado (modo demo).'
+    case 'SENSOR_ON':
+      return `Listo, encendi ${intent.sensor} (modo demo).`
+    case 'SENSOR_OFF':
+      return `Listo, apague ${intent.sensor} (modo demo).`
+    case 'MODE_AUTO':
+      return 'Modo automatico activado (modo demo).'
+    case 'MODE_MANUAL':
+      return 'Modo manual activado (modo demo).'
+    case 'SET_SETPOINT':
+    case 'SETPOINT_UP':
+    case 'SETPOINT_DOWN':
+      return `Setpoint ajustado a ${fields.setpoint} grados (modo demo).`
+    default:
+      return 'Comando aplicado en modo demo.'
   }
 }
 
