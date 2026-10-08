@@ -55,6 +55,12 @@ export default function Dashboard() {
     return result
   }, [commandUpdate, notifyHmiResult])
 
+  const handleHmiSend = useCallback(async (fields: Record<string, unknown>) => {
+    const result = await sendHmiCommand(fields)
+    notifyHmiResult(result)
+    return result
+  }, [sendHmiCommand, notifyHmiResult])
+
   const handleVoiceSectionVisibleChange = useCallback((visible: boolean) => {
     setVoiceSectionVisible(visible)
   }, [])
@@ -197,7 +203,7 @@ export default function Dashboard() {
       case 'monitoreo':
         return <MonitoreoPage data={data} onUpdate={handleHmiUpdate} />
       case 'configuraciones':
-        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} />
+        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} onSend={handleHmiSend} />
       case 'alertas':
         return <AlertasPage data={data} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
       case 'datos-externos':

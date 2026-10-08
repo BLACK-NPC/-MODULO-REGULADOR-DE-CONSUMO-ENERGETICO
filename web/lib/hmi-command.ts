@@ -16,7 +16,10 @@ export function isRemoteCommandPath(path: string): boolean {
     path === 'modo' ||
     path === 'velocidad' ||
     path === 'setpoint' ||
-    path.startsWith('config/')
+    path.startsWith('config/') ||
+    path.startsWith('sistema/') ||
+    path.startsWith('conectividad/') ||
+    path.startsWith('automatizacion/')
   )
 }
 

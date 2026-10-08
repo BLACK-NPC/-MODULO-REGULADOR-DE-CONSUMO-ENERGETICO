@@ -27,13 +27,15 @@ export function buildSolicitudPayload(
   const solicitud: Record<string, unknown> = { reqId }
 
   for (const [path, value] of Object.entries(fields)) {
-    if (path.startsWith('config/')) {
-      const configKey = path.slice('config/'.length)
-      const currentConfig =
-        solicitud.config && typeof solicitud.config === 'object'
-          ? (solicitud.config as Record<string, unknown>)
+    const slash = path.indexOf('/')
+    if (slash > 0) {
+      const group = path.slice(0, slash)
+      const key = path.slice(slash + 1)
+      const current =
+        solicitud[group] && typeof solicitud[group] === 'object'
+          ? (solicitud[group] as Record<string, unknown>)
           : {}
-      solicitud.config = { ...currentConfig, [configKey]: value }
+      solicitud[group] = { ...current, [key]: value }
       continue
     }
 

@@ -37,6 +37,33 @@ export interface AVCData {
     guardarTemperatura: boolean
     guardarPotencia: boolean
     guardarMovimiento: boolean
+    sensorHumedad: boolean
+    sensorTemperatura: boolean
+    sensorPotencia: boolean
+    sensorMovimiento: boolean
+    spMin: number
+    spMax: number
+    dht: number
+  }
+  sistema: {
+    brillo: number
+    brilloOn: boolean
+    suspension: number
+    suspensionOn: boolean
+    beep: boolean
+    beepMs: number
+    beepDuty: number
+  }
+  conectividad: {
+    firebaseModo: number
+    wifiRadio: boolean
+  }
+  automatizacion: {
+    retencionMs: number
+    alcance: number
+  }
+  diag: {
+    fallas: number
   }
   historico: {
     [dia: string]: AVCHistoryDay
@@ -84,6 +111,11 @@ function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | nu
 
   const wifi = source.wifi && typeof source.wifi === 'object' ? (source.wifi as Record<string, unknown>) : {}
   const config = source.config && typeof source.config === 'object' ? (source.config as Record<string, unknown>) : {}
+  const sistema = source.sistema && typeof source.sistema === 'object' ? (source.sistema as Record<string, unknown>) : {}
+  const conectividad = source.conectividad && typeof source.conectividad === 'object' ? (source.conectividad as Record<string, unknown>) : {}
+  const automatizacion = source.automatizacion && typeof source.automatizacion === 'object' ? (source.automatizacion as Record<string, unknown>) : {}
+  const diag = source.diag && typeof source.diag === 'object' ? (source.diag as Record<string, unknown>) : {}
+  const optionalBool = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback)
   const estado = source.estado === 'running' ? 'running' : 'stopped'
   const modo = source.modo === 'MANUAL' ? 'MANUAL' : 'AUTOMATICO'
 
@@ -109,6 +141,33 @@ function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | nu
       guardarTemperatura: toBoolean(config.guardarTemperatura),
       guardarPotencia: toBoolean(config.guardarPotencia),
       guardarMovimiento: toBoolean(config.guardarMovimiento),
+      sensorHumedad: optionalBool(config.sensorHumedad, true),
+      sensorTemperatura: optionalBool(config.sensorTemperatura, true),
+      sensorPotencia: optionalBool(config.sensorPotencia, true),
+      sensorMovimiento: optionalBool(config.sensorMovimiento, true),
+      spMin: toNumber(config.spMin, 0),
+      spMax: toNumber(config.spMax, 100),
+      dht: toNumber(config.dht, 11) === 22 ? 22 : 11,
+    },
+    sistema: {
+      brillo: toNumber(sistema.brillo, 80),
+      brilloOn: optionalBool(sistema.brilloOn, true),
+      suspension: Math.min(6, Math.max(0, toNumber(sistema.suspension, 4))),
+      suspensionOn: optionalBool(sistema.suspensionOn, true),
+      beep: optionalBool(sistema.beep, false),
+      beepMs: toNumber(sistema.beepMs, 50),
+      beepDuty: toNumber(sistema.beepDuty, 60),
+    },
+    conectividad: {
+      firebaseModo: Math.min(3, Math.max(0, toNumber(conectividad.firebaseModo, 3))),
+      wifiRadio: optionalBool(conectividad.wifiRadio, true),
+    },
+    automatizacion: {
+      retencionMs: toNumber(automatizacion.retencionMs, 2000),
+      alcance: Math.min(2, Math.max(0, toNumber(automatizacion.alcance, 0))),
+    },
+    diag: {
+      fallas: toNumber(diag.fallas, 0),
     },
     historico: normalizeHistorico(source.historico),
   }
@@ -119,7 +178,12 @@ function toCommandPath(path: string): string | null {
     return `comandos/solicitud/${path}`
   }
 
-  if (path.startsWith('config/')) {
+  if (
+    path.startsWith('config/') ||
+    path.startsWith('sistema/') ||
+    path.startsWith('conectividad/') ||
+    path.startsWith('automatizacion/')
+  ) {
     return `comandos/solicitud/${path}`
   }
 
@@ -146,7 +210,18 @@ const demoData: AVCData = {
     guardarTemperatura: true,
     guardarPotencia: false,
     guardarMovimiento: false,
+    sensorHumedad: true,
+    sensorTemperatura: true,
+    sensorPotencia: true,
+    sensorMovimiento: true,
+    spMin: 0,
+    spMax: 100,
+    dht: 11,
   },
+  sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
+  conectividad: { firebaseModo: 3, wifiRadio: true },
+  automatizacion: { retencionMs: 2000, alcance: 0 },
+  diag: { fallas: 0 },
   historico: {
     Lun: { potencia: [10, 25, 37, 50, 45, 30], temperatura: [20, 22, 25, 28, 26, 24], humedad: [30, 35, 40, 38, 35, 32] },
     Mar: { potencia: [15, 30, 42, 48, 40, 25], temperatura: [21, 24, 27, 29, 27, 23], humedad: [32, 38, 42, 40, 36, 33] },
@@ -178,8 +253,49 @@ const defaultData: AVCData = {
     guardarTemperatura: false,
     guardarPotencia: false,
     guardarMovimiento: false,
+    sensorHumedad: true,
+    sensorTemperatura: true,
+    sensorPotencia: true,
+    sensorMovimiento: true,
+    spMin: 0,
+    spMax: 100,
+    dht: 11,
   },
+  sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
+  conectividad: { firebaseModo: 3, wifiRadio: true },
+  automatizacion: { retencionMs: 2000, alcance: 0 },
+  diag: { fallas: 0 },
   historico: {},
+}
+
+function keepAbsentKeys<T extends Record<string, unknown>>(
+  previous: T,
+  incoming: T,
+  rawParent: unknown,
+  keys: (keyof T)[],
+): T {
+  const raw = rawParent && typeof rawParent === 'object' ? (rawParent as Record<string, unknown>) : {}
+  const merged = { ...incoming }
+  for (const key of keys) {
+    if (!(String(key) in raw)) {
+      merged[key] = previous[key]
+    }
+  }
+  return merged
+}
+
+function applyCommandPath(data: AVCData, path: string, value: unknown): AVCData {
+  const slash = path.indexOf('/')
+  if (slash < 0) {
+    return { ...data, [path]: value }
+  }
+  const group = path.slice(0, slash) as keyof AVCData
+  const key = path.slice(slash + 1)
+  const parent = data[group]
+  if (!parent || typeof parent !== 'object') {
+    return data
+  }
+  return { ...data, [group]: { ...parent, [key]: value } }
 }
 
 export function useAVCData() {
@@ -214,7 +330,41 @@ export function useAVCData() {
             lastAcceptedVersionRef.current = normalizedData.version
           }
 
-          setData(normalizedData)
+          const raw = snapshot.val() as Record<string, unknown>
+          setData((prev) => ({
+            ...normalizedData,
+            config: keepAbsentKeys(prev.config, normalizedData.config, raw.config, [
+              'sensorHumedad',
+              'sensorTemperatura',
+              'sensorPotencia',
+              'sensorMovimiento',
+              'spMin',
+              'spMax',
+              'dht',
+            ]),
+            sistema: keepAbsentKeys(prev.sistema, normalizedData.sistema, raw.sistema, [
+              'brillo',
+              'brilloOn',
+              'suspension',
+              'suspensionOn',
+              'beep',
+              'beepMs',
+              'beepDuty',
+            ]),
+            conectividad: keepAbsentKeys(
+              prev.conectividad,
+              normalizedData.conectividad,
+              raw.conectividad,
+              ['firebaseModo', 'wifiRadio'],
+            ),
+            automatizacion: keepAbsentKeys(
+              prev.automatizacion,
+              normalizedData.automatizacion,
+              raw.automatizacion,
+              ['retencionMs', 'alcance'],
+            ),
+            diag: keepAbsentKeys(prev.diag, normalizedData.diag, raw.diag, ['fallas']),
+          }))
 
           if (lastHeartbeatValueRef.current !== normalizedData.heartbeat || lastHeartbeatAtRef.current === null) {
             const now = Date.now()
@@ -314,7 +464,25 @@ export function useAVCData() {
       await updateData(path, value)
       return { ok: true, mensaje: '' }
     }
-    return sendHmiCommand(fields)
+    let previousValue: unknown
+    setData((prev) => {
+      const slash = path.indexOf('/')
+      if (slash < 0) {
+        previousValue = prev[path as keyof AVCData]
+      } else {
+        const parent = prev[path.slice(0, slash) as keyof AVCData]
+        previousValue =
+          parent && typeof parent === 'object'
+            ? (parent as Record<string, unknown>)[path.slice(slash + 1)]
+            : undefined
+      }
+      return applyCommandPath(prev, path, value)
+    })
+    const result = await sendHmiCommand(fields)
+    if (!result.ok) {
+      setData((prev) => applyCommandPath(prev, path, previousValue))
+    }
+    return result
   }, [sendHmiCommand, updateData])
 
   return {
