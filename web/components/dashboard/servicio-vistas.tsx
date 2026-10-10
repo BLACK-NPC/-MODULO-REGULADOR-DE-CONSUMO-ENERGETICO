@@ -53,6 +53,7 @@ export function ServicioVistas({
   const [intervalDays, setIntervalDays] = useState(30)
   const [person, setPerson] = useState('')
   const [closingId, setClosingId] = useState<string | null>(null)
+  const [aviso, setAviso] = useState('')
 
   useEffect(() => {
     const sync = () => setStore(loadServicio())
@@ -67,19 +68,22 @@ export function ServicioVistas({
   function addTask() {
     const trimmed = name.trim().slice(0, 22)
     if (!trimmed) {
+      setAviso('Escribe el nombre de la tarea.')
       return
     }
+    const dias = Number.isFinite(intervalDays) && intervalDays >= 1 ? Math.round(intervalDays) : 30
     const task: ServicioTask = {
       id: `t_${Date.now()}`,
       name: trimmed,
       type,
-      intervalDays: Math.max(1, intervalDays),
+      intervalDays: dias,
       reminderDays: 3,
       createdAt: new Date().toISOString(),
       lastDone: null,
     }
-    commit({ ...store, tasks: [...store.tasks, task] })
+    setStore((current) => saveServicio({ ...current, tasks: [...current.tasks, task] }))
     setName('')
+    setAviso('Tarea añadida. Queda en esta lista y en Pendientes.')
   }
 
   function closeTask(task: ServicioTask) {
@@ -161,6 +165,60 @@ export function ServicioVistas({
             </>
           ) : null}
 
+          {vista === 'mantenimiento' ? (
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <p className="text-[11px] font-bold tracking-wide text-muted-foreground">NUEVA TAREA</p>
+              <input
+                value={name}
+                maxLength={22}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setAviso('')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTask()
+                  }
+                }}
+                placeholder="Nombre"
+                className="w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground"
+              />
+              <div className="grid grid-cols-2 gap-1">
+                {SERVICIO_TYPES.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setType(item)}
+                    className={`h-8 rounded-md border text-xs ${type === item ? 'bg-foreground text-background border-foreground' : 'border-border text-foreground'}`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <label className="block text-xs text-muted-foreground">
+                Intervalo (dias)
+                <input
+                  type="number"
+                  min={1}
+                  value={intervalDays}
+                  onChange={(e) => setIntervalDays(Number(e.target.value))}
+                  className="mt-1 w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground"
+                />
+              </label>
+              <button
+                type="button"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={addTask}
+                className="w-full h-10 rounded-md bg-foreground text-sm font-medium text-background"
+              >
+                Anadir tarea
+              </button>
+              {aviso ? <p className="text-xs text-muted-foreground">{aviso}</p> : null}
+            </div>
+          ) : null}
+
           {vista === 'pendientes' || vista === 'vencidas' || vista === 'mantenimiento' ? (
             <>
               {shown.length === 0 ? (
@@ -199,52 +257,15 @@ export function ServicioVistas({
           ) : null}
 
           {vista === 'mantenimiento' ? (
-            <>
-              <div className="rounded-lg border border-border p-3 space-y-2">
-                <p className="text-[11px] font-bold tracking-wide text-muted-foreground">NUEVA TAREA</p>
-                <input
-                  value={name}
-                  maxLength={22}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nombre"
-                  className="w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground"
-                />
-                <div className="grid grid-cols-2 gap-1">
-                  {SERVICIO_TYPES.map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setType(item)}
-                      className={`h-8 rounded-md border text-xs ${type === item ? 'bg-foreground text-background border-foreground' : 'border-border text-foreground'}`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-                <label className="block text-xs text-muted-foreground">
-                  Intervalo (dias)
-                  <input
-                    type="number"
-                    min={1}
-                    value={intervalDays}
-                    onChange={(e) => setIntervalDays(Number(e.target.value))}
-                    className="mt-1 w-full rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground"
-                  />
-                </label>
-                <button type="button" onClick={addTask} className="w-full h-9 rounded-md bg-foreground text-sm font-medium text-background">
-                  Anadir tarea
-                </button>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold tracking-wide text-muted-foreground">BITACORA</p>
-                {store.logs.length === 0 ? <p className="text-xs text-muted-foreground">Sin cierres todavia.</p> : null}
-                {store.logs.slice(0, 8).map((entry) => (
-                  <p key={entry.id} className="text-xs text-muted-foreground">
-                    {entry.taskName} · {entry.person} · {new Date(entry.at).toLocaleString()}
-                  </p>
-                ))}
-              </div>
-            </>
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold tracking-wide text-muted-foreground">BITACORA</p>
+              {store.logs.length === 0 ? <p className="text-xs text-muted-foreground">Sin cierres todavia.</p> : null}
+              {store.logs.slice(0, 8).map((entry) => (
+                <p key={entry.id} className="text-xs text-muted-foreground">
+                  {entry.taskName} · {entry.person} · {new Date(entry.at).toLocaleString()}
+                </p>
+              ))}
+            </div>
           ) : null}
 
         </CardContent>
