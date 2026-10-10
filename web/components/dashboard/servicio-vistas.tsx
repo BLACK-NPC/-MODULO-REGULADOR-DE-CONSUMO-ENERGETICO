@@ -14,8 +14,9 @@ import {
   type ServicioTask,
   type ServicioType,
 } from '@/lib/page-servicio'
+import type { VerificacionItem } from '@/lib/verificacion-falla'
 
-type Vista = 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen'
+type Vista = 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen' | 'verificacion'
 
 const titles: Record<Vista, string> = {
   pendientes: 'PENDIENTES',
@@ -24,7 +25,14 @@ const titles: Record<Vista, string> = {
   diagnostico: 'DIAGNOSTICO',
   cumplimiento: 'CUMPLIMIENTO',
   resumen: 'RESUMEN SEMANAL',
+  verificacion: 'VERIFICACION TRAS FALLA',
 }
+
+const veredictoTexto = {
+  verificado: 'Verificado',
+  revisar: 'Revisar',
+  sin_dato: 'No se puede verificar',
+} as const
 
 export function ServicioVistas({
   vista,
@@ -32,11 +40,13 @@ export function ServicioVistas({
   fallas,
   sensores,
   operacion,
+  verificacion = [],
 }: {
   vista: Vista
   onBack: () => void
   fallas: number
   sensores: { nombre: string; activo: boolean }[]
+  verificacion?: VerificacionItem[]
   operacion: {
     estado: string
     modo: string
@@ -115,6 +125,27 @@ export function ServicioVistas({
           <CardTitle className="text-lg text-foreground">{titles[vista]}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {vista === 'verificacion' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Usa la lectura actual. Si un dato no llega, no se inventa la causa.
+              </p>
+              {verificacion.map((punto) => (
+                <div key={punto.id} className="rounded-md border border-border px-3 py-2 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground">{punto.funcion}</p>
+                    <p className={`text-[11px] font-bold shrink-0 ${punto.veredicto === 'verificado' ? 'text-green-400' : punto.veredicto === 'revisar' ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                      {veredictoTexto[punto.veredicto]}
+                    </p>
+                  </div>
+                  <p className="text-xs text-foreground">{punto.motivo}</p>
+                  <p className="text-xs text-muted-foreground">Revisar: {punto.revisar}</p>
+                  <p className="text-xs text-muted-foreground">Si falla: {punto.desencadena}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           {vista === 'diagnostico' ? (
             <>
               <p className="text-sm font-medium text-foreground">Fallas activas: {fallas}</p>

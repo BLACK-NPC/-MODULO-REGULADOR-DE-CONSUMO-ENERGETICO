@@ -191,7 +191,7 @@ export default function Dashboard() {
       case 'monitoreo':
         return <MonitoreoPage data={data} onUpdate={handleHmiUpdate} />
       case 'configuraciones':
-        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} />
+        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
       case 'alertas':
         return <AlertasPage data={data} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
       case 'datos-externos':

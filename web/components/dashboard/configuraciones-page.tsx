@@ -32,6 +32,7 @@ import {
   Crosshair,
   List,
   AlertTriangle,
+  Search,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -42,11 +43,15 @@ import { PerfilesHorarios } from '@/components/dashboard/perfiles-horarios'
 import { ServicioVistas } from '@/components/dashboard/servicio-vistas'
 import { EquipoVistas } from '@/components/dashboard/equipo-vistas'
 import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
+import { activeEquipo, loadEquipo } from '@/lib/page-equipo'
+import { buildVerificacionFalla } from '@/lib/verificacion-falla'
 import type { HmiCommandResult } from '@/lib/hmi-command'
 
 interface ConfiguracionesPageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => Promise<HmiCommandResult>
+  isDemo?: boolean
+  lastHeartbeatAt?: number | null
 }
 
 const SP_PIN = '2011'
@@ -167,7 +172,7 @@ function MedicionSwitch({
   )
 }
 
-export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps) {
+export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartbeatAt = null }: ConfiguracionesPageProps) {
   const [fabVisible, setFabVisible] = useState(true)
   const [medicionAbierta, setMedicionAbierta] = useState(false)
   const [autoAbierta, setAutoAbierta] = useState(false)
@@ -181,7 +186,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
   const [servicioVista, setServicioVista] = useState<
-    'panel' | 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen'
+    'panel' | 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen' | 'verificacion'
   >('panel')
   const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true })
   const [spUnlocked, setSpUnlocked] = useState(false)
@@ -616,6 +621,18 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               </button>
               <button
                 type="button"
+                onClick={() => setServicioVista('verificacion')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">VERIFICACION TRAS FALLA</p>
+                  <p className="text-xs text-muted-foreground">Que se puede comprobar y que no</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setServicioVista('diagnostico')}
                 className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
               >
@@ -675,6 +692,14 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
             consumoDia: promedioPotenciaDia(data.historico),
             tipos: tiposDeFalla(data),
           }}
+          verificacion={buildVerificacionFalla({
+            data,
+            isDemo,
+            lastHeartbeatAt,
+            now: Date.now(),
+            perfil: perfilActivo,
+            amperiosNominal: activeEquipo(loadEquipo())?.amps ?? null,
+          })}
         />
       ) : null}
 
