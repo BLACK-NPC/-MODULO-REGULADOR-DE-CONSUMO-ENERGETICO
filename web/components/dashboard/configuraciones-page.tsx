@@ -16,6 +16,8 @@ import {
   ArrowDown,
   Lock,
   ChevronDown,
+  ChevronRight,
+  ArrowLeft,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -128,6 +130,7 @@ function MedicionSwitch({
 
 export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps) {
   const [fabVisible, setFabVisible] = useState(true)
+  const [medicionAbierta, setMedicionAbierta] = useState(false)
   const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true })
   const [spUnlocked, setSpUnlocked] = useState(false)
   const [pinOpen, setPinOpen] = useState(false)
@@ -197,6 +200,16 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         <p className="text-muted-foreground">Medicion, control y configuracion del equipo</p>
       </div>
 
+      {medicionAbierta ? (
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setMedicionAbierta(false)}
+          className="flex items-center gap-2 text-sm font-medium text-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Configuraciones
+        </button>
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg text-foreground">Medicion</CardTitle>
@@ -359,7 +372,23 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
         </CardContent>
       </Card>
+      </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setMedicionAbierta(true)}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">MEDICION</p>
+            <p className="text-xs text-muted-foreground">Humedad, temperatura, potencia</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+      )}
 
+      {!medicionAbierta ? (
+      <>
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg text-foreground">Control</CardTitle>
@@ -528,6 +557,8 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
         </CardContent>
       </Card>
+      </>
+      ) : null}
 
       {pendingDht !== null ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
