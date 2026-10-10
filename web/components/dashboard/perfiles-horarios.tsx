@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { sendRemoteCommand } from '@/lib/firebase-remote-command'
 import {
   DAY_CHIPS,
   SMART_ON_CONFIG_MAX,
@@ -12,6 +13,7 @@ import {
   duplicateProfile,
   formatSchedule,
   loadSmartProfileStore,
+  profileCommandFields,
   profileRows,
   saveSmartProfileStore,
   type SmartProfile,
@@ -43,6 +45,14 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
     setStore(saveSmartProfileStore({ slots: next, activeIndex }))
   }
 
+  function pushProfile(profile: SmartProfile, usar: boolean, borrar = false) {
+    void sendRemoteCommand(profileCommandFields(profile, usar, borrar)).then((result) => {
+      if (!result.ok) {
+        flash(result.mensaje)
+      }
+    })
+  }
+
   function flash(text: string) {
     setNotice(text)
     window.setTimeout(() => setNotice(''), 2200)
@@ -66,6 +76,9 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
           type="button"
           onClick={() => {
             commit(slots)
+            if (editing) {
+              pushProfile(editing, editIndex === store.activeIndex)
+            }
             setEditIndex(null)
           }}
           className="flex items-center gap-2 text-sm font-medium text-foreground"
@@ -206,6 +219,9 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
               type="button"
               onClick={() => {
                 commit(slots)
+                if (editing) {
+                  pushProfile(editing, editIndex === store.activeIndex)
+                }
                 flash('Guardado')
                 setEditIndex(null)
               }}
@@ -242,7 +258,11 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => commit(activateProfile(slots, index), index)}
+                    onClick={() => {
+                      const next = activateProfile(slots, index)
+                      commit(next, index)
+                      pushProfile(next[index], true)
+                    }}
                     className="h-8 px-3 rounded-md border border-border text-xs font-medium"
                   >
                     {profile.active ? 'En uso' : 'Usar'}
@@ -263,6 +283,7 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
                         return
                       }
                       commit(created.slots)
+                      pushProfile(created.slots[created.index], false)
                       flash('Configuracion duplicada')
                     }}
                     className="h-8 px-3 rounded-md border border-border text-xs font-medium"
@@ -281,9 +302,11 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
                         flash('Toca otra vez para eliminar')
                         return
                       }
+                      const removed = slots[index]
                       const next = slots.slice()
                       next[index] = { ...next[index], used: false, active: false }
                       commit(next)
+                      pushProfile(removed, false, true)
                       setDeleteIndex(null)
                       flash('Configuracion eliminada')
                     }}
@@ -329,7 +352,9 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
                     type="button"
                     onClick={() => {
                       if (!inUse) {
-                        commit(activateProfile(slots, index), index)
+                        const next = activateProfile(slots, index)
+                        commit(next, index)
+                        pushProfile(next[index], true)
                       }
                     }}
                     className={`h-8 px-3 rounded-md text-xs font-medium ${inUse ? 'bg-background/20 text-background' : 'border border-border'}`}
@@ -360,6 +385,7 @@ export function PerfilesHorarios({ onBack }: { onBack: () => void }) {
                 return
               }
               commit(created.slots, created.index)
+              pushProfile(created.slots[created.index], true)
               setEditIndex(created.index)
             }}
             className="w-full h-10 rounded-md bg-foreground text-sm font-medium text-background"

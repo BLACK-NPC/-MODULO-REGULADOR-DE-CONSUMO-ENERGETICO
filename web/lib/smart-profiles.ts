@@ -269,3 +269,24 @@ export function duplicateProfile(slots: SmartProfile[], index: number): { slots:
 }
 
 export const DAY_CHIPS = DAY_LABELS
+
+export function profileCommandFields(profile: SmartProfile, usar: boolean, borrar = false): Record<string, unknown> {
+  return {
+    'automatizacion/perfilNombre': profile.profileName,
+    'automatizacion/perfilVariante': profile.variantName || 'estandar',
+    'automatizacion/perfilDias': profile.daysMask,
+    'automatizacion/perfilDesdeH': profile.hourFrom,
+    'automatizacion/perfilDesdeM': profile.minFrom,
+    'automatizacion/perfilHastaH': profile.hourTo,
+    'automatizacion/perfilHastaM': profile.minTo,
+    'automatizacion/perfilSp': profile.setpointC,
+    'automatizacion/perfilHum': profile.humidityMax,
+    'automatizacion/perfilVel': profile.speedMax,
+    'automatizacion/perfilPresencia': profile.presenceRequired,
+    'automatizacion/perfilSilencio': profile.silentMode,
+    'automatizacion/perfilPreventiva': profile.preventiveVent,
+    'automatizacion/perfilForzar': profile.forceOnSchedule,
+    'automatizacion/perfilUsar': usar,
+    'automatizacion/perfilBorrar': borrar,
+  }
+}
