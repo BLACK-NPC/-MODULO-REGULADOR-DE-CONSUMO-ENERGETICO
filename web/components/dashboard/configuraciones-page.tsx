@@ -30,6 +30,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { FAB_HIDDEN_CHANGE_EVENT, isFabHidden, setFabHidden } from '@/lib/fab-storage'
 import type { AVCData } from '@/hooks/use-avc-data'
+import { PerfilesHorarios } from '@/components/dashboard/perfiles-horarios'
+import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
 import type { HmiCommandResult } from '@/lib/hmi-command'
 
 interface ConfiguracionesPageProps {
@@ -139,6 +141,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   const [medicionAbierta, setMedicionAbierta] = useState(false)
   const [autoAbierta, setAutoAbierta] = useState(false)
   const [autoVista, setAutoVista] = useState<'panel' | 'radar' | 'perfiles'>('panel')
+  const [perfilActivo, setPerfilActivo] = useState<{ name: string; schedule: string } | null>(null)
   const [equipoAbierta, setEquipoAbierta] = useState(false)
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
@@ -160,6 +163,15 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   useEffect(() => setBeepMs(data.sistema.beepMs), [data.sistema.beepMs])
   useEffect(() => setBeepDuty(data.sistema.beepDuty), [data.sistema.beepDuty])
   useEffect(() => setRetencion(data.automatizacion.retencionMs), [data.automatizacion.retencionMs])
+  useEffect(() => {
+    function syncPerfil() {
+      const profile = currentProfile(loadSmartProfileStore())
+      setPerfilActivo(profile ? { name: `${profile.profileName} - ${profile.variantName}`, schedule: formatSchedule(profile) } : null)
+    }
+    syncPerfil()
+    window.addEventListener(SMART_PROFILES_EVENT, syncPerfil)
+    return () => window.removeEventListener(SMART_PROFILES_EVENT, syncPerfil)
+  }, [])
 
   useEffect(() => {
     setFabVisible(!isFabHidden())
@@ -442,8 +454,8 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                     {!data.config.sensorMovimiento ? 'INACTIVO' : data.movimiento ? 'ACTIVO' : 'FUERA'}
                   </span>
                 </div>
-                <p className="mt-1 font-medium text-foreground">Sin perfil activo</p>
-                <p className="text-xs text-muted-foreground">Abre Perfiles y horarios para configurar</p>
+                <p className="mt-1 font-medium text-foreground">{perfilActivo ? perfilActivo.name : 'Sin perfil activo'}</p>
+                <p className="text-xs text-muted-foreground">{perfilActivo ? perfilActivo.schedule : 'Abre Perfiles y horarios para configurar'}</p>
               </div>
               <button
                 type="button"
@@ -453,7 +465,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Perfiles y horarios</p>
-                  <p className="text-xs text-muted-foreground">La lista se guarda en el HMI</p>
+                  <p className="text-xs text-muted-foreground">Crear, editar y elegir el horario</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </button>
@@ -509,22 +521,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
       ) : null}
 
       {autoAbierta && autoVista === 'perfiles' ? (
-        <div className="space-y-3">
-          <button type="button" onClick={() => setAutoVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <ArrowLeft className="w-4 h-4" />
-            Automatizacion
-          </button>
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg text-foreground">PERFILES Y HORARIOS</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Crear, editar y elegir el perfil activo se hace en el HMI. Esta pagina todavia no recibe esa lista.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <PerfilesHorarios onBack={() => setAutoVista('panel')} />
       ) : null}
 
       {servicioAbierta && servicioVista === 'panel' ? (
