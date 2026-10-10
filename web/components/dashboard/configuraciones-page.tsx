@@ -144,6 +144,8 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   const [perfilActivo, setPerfilActivo] = useState<{ name: string; schedule: string } | null>(null)
   const [equipoAbierta, setEquipoAbierta] = useState(false)
   const [sistemaAbierta, setSistemaAbierta] = useState(false)
+  const [conectAbierta, setConectAbierta] = useState(false)
+  const [conectVista, setConectVista] = useState<'wifi' | 'firebase'>('wifi')
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
   const [servicioVista, setServicioVista] = useState<
@@ -400,7 +402,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         </CardContent>
       </Card>
       </div>
-      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta ? (
+      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta ? (
         <button
           type="button"
           onClick={() => setMedicionAbierta(true)}
@@ -833,7 +835,56 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         </div>
       ) : null}
 
-      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta ? (
+      {conectAbierta ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setConectAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Configuraciones
+          </button>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">CONECTIVIDAD</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ChoiceRow
+                labels={['WiFi', 'Firebase']}
+                value={conectVista === 'wifi' ? 0 : 1}
+                onPick={(index) => setConectVista(index === 0 ? 'wifi' : 'firebase')}
+              />
+              {conectVista === 'wifi' ? (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground">RADIO WiFi</p>
+                  <p className="text-lg font-medium text-foreground">
+                    {!data.conectividad.wifiRadio ? 'Apagado' : data.wifi.conectado ? 'Conectado' : 'Sin enlace'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {!data.conectividad.wifiRadio
+                      ? 'Radio desactivada'
+                      : data.wifi.conectado
+                        ? [data.wifi.ssid, data.wifi.ip].filter(Boolean).join(' · ') || 'Red conectada'
+                        : 'Redes y clave se configuran en el HMI'}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border p-4 space-y-3">
+                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground">MODO NUBE</p>
+                  <p className="text-lg font-medium text-foreground">{firebaseModes[data.conectividad.firebaseModo] ?? 'Apagado'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {['Sin enlace a la nube', 'Recibe; no publica', 'Publica; no escucha', 'Bidireccional'][data.conectividad.firebaseModo] ?? 'Sin enlace a la nube'}
+                  </p>
+                  <ChoiceRow
+                    labels={firebaseModes}
+                    value={data.conectividad.firebaseModo}
+                    onPick={(index) => send('conectividad/firebaseModo', index)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta ? (
       <>
         <button
           type="button"
@@ -888,23 +939,20 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
-
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-lg text-foreground">Configuracion</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
-            <p className="font-medium text-foreground">FIREBASE</p>
-            <p className="text-xs text-muted-foreground">Como habla la pagina con el equipo. La red WiFi se configura en el HMI.</p>
-            <ChoiceRow
-              labels={firebaseModes}
-              value={data.conectividad.firebaseModo}
-              onPick={(index) => send('conectividad/firebaseModo', index)}
-            />
+        <button
+          type="button"
+          onClick={() => {
+            setConectVista('wifi')
+            setConectAbierta(true)
+          }}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">CONECTIVIDAD</p>
+            <p className="text-xs text-muted-foreground">Wifi, Firebase</p>
           </div>
-        </CardContent>
-      </Card>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
 
       <Card className="bg-card border-border">
         <CardHeader>
