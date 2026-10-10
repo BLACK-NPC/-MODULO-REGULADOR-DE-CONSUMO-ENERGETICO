@@ -4,40 +4,40 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Misma paleta que el HMI 480x272 */
-  --background: #F3F4F6;
-  --foreground: #101828;
-  --card: #ffffff;
-  --card-foreground: #101828;
-  --popover: #ffffff;
-  --popover-foreground: #101828;
-  --primary: #101828;
-  --primary-foreground: #ffffff;
-  --secondary: #F3F4F6;
-  --secondary-foreground: #101828;
-  --muted: #F3F4F6;
-  --muted-foreground: #5b6472;
-  --accent: #E5E7EB;
-  --accent-foreground: #101828;
-  --destructive: #D50000;
-  --destructive-foreground: #ffffff;
-  --border: #c3cbd6;
-  --input: #d7dde5;
-  --ring: #2F6FED;
-  --chart-1: #E5342A;
-  --chart-2: #2F6FED;
-  --chart-3: #FB7900;
-  --chart-4: #22a35a;
-  --chart-5: #5b6472;
-  --radius: 8px;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #101828;
-  --sidebar-primary: #101828;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #101828;
-  --sidebar-border: #d7dde5;
-  --sidebar-ring: #2F6FED;
+  /* Dark theme by default - AVC-01 Technical Style */
+  --background: oklch(0.09 0 0);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.65 0.18 145);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.55 0.18 55);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.22 0 0);
+  --input: oklch(0.18 0 0);
+  --ring: oklch(0.65 0.18 145);
+  --chart-1: oklch(0.65 0.18 145);
+  --chart-2: oklch(0.55 0.18 55);
+  --chart-3: oklch(0.55 0.22 25);
+  --chart-4: oklch(0.55 0.15 250);
+  --chart-5: oklch(0.65 0.15 200);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.12 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.65 0.18 145);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.18 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.22 0 0);
+  --sidebar-ring: oklch(0.65 0.18 145);
   
   /* Custom AVC colors */
   --success: oklch(0.65 0.18 145);

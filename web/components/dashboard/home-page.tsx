@@ -1,43 +1,33 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Mic, Loader2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { Thermometer, Droplets, Zap, Play, Square, Mic } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { VoiceAssistant } from '@/components/voice-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
+import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
-import type { HmiCommandResult } from '@/lib/hmi-command'
 
 interface HomePageProps {
   data: AVCData
-  hmiReachable: boolean
-  isDemo: boolean
-  onUpdate: (path: string, value: unknown) => Promise<HmiCommandResult>
+  onUpdate: (path: string, value: unknown) => void
   onVoiceSectionVisibleChange?: (visible: boolean) => void
   onVoiceCommand?: (intent: VoiceIntent) => Promise<string | null> | string | null
 }
 
 export function HomePage({
   data,
-  hmiReachable,
-  isDemo,
   onUpdate,
   onVoiceSectionVisibleChange,
   onVoiceCommand,
 }: HomePageProps) {
   const voiceSectionRef = useRef<HTMLElement>(null)
-  const velocidadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [pendingPath, setPendingPath] = useState<string | null>(null)
-  const [setpointDraft, setSetpointDraft] = useState(String(data.setpoint))
-
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
-
-  useEffect(() => {
-    setSetpointDraft(String(data.setpoint))
-  }, [data.setpoint])
+  const circumference = 2 * Math.PI * 45
+  const strokeDashoffset = circumference - (velocidadPorcentaje / 100) * circumference
 
   useEffect(() => {
     if (!onVoiceSectionVisibleChange) return
@@ -55,145 +45,200 @@ export function HomePage({
     return () => observer.disconnect()
   }, [onVoiceSectionVisibleChange])
 
-  useEffect(() => {
-    return () => {
-      if (velocidadTimerRef.current) {
-        clearTimeout(velocidadTimerRef.current)
-      }
-    }
-  }, [])
-
-  async function runCommand(path: string, value: unknown) {
-    if (pendingPath) return
-    setPendingPath(path)
-    try {
-      await onUpdate(path, value)
-    } finally {
-      setPendingPath(null)
-    }
-  }
-
-  function handleVelocidadChange(value: number) {
-    if (velocidadTimerRef.current) {
-      clearTimeout(velocidadTimerRef.current)
-    }
-    velocidadTimerRef.current = setTimeout(() => {
-      void runCommand('velocidad', value)
-    }, 600)
-  }
-
-  async function commitSetpoint() {
-    const parsed = Number(setpointDraft)
-    if (!Number.isFinite(parsed) || parsed === data.setpoint) {
-      setSetpointDraft(String(data.setpoint))
-      return
-    }
-    await runCommand('setpoint', parsed)
-  }
-
-  const controlsLocked = pendingPath !== null
-  const showHmiWarning = !isDemo && !hmiReachable
-
-  const arcFilled = (velocidadPorcentaje / 100) * 300
-
   return (
-    <div className="space-y-4">
-      {showHmiWarning && (
-        <p className="text-sm text-[#101828] bg-white border border-[#c3cbd6] rounded-lg px-3 py-2">
-          El modulo no responde. Enciendelo y conectalo a WiFi antes de usar los controles.
-        </p>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="bg-white border border-[#c3cbd6] rounded-lg p-4 min-h-[168px]">
-          <p className="text-xs font-bold text-[#5b6472]">Temperatura °C</p>
-          <p className="mt-3 text-4xl font-extrabold text-[#101828] leading-none">{data.temperatura} °C</p>
-          <div className="mt-5 flex items-center gap-2 text-sm font-bold">
-            <span>SP:</span>
-            <Input
-              type="number"
-              value={setpointDraft}
-              disabled={controlsLocked || pendingPath === 'setpoint'}
-              onChange={(e) => setSetpointDraft(e.target.value)}
-              onBlur={() => void commitSetpoint()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur()
-              }}
-              className="w-14 h-8 text-center bg-[#F5F5F5] border-[#A8A8A8] text-[#101828] font-extrabold"
-            />
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Panel Principal</h2>
+          <p className="text-muted-foreground">Control y monitoreo en tiempo real</p>
         </div>
-
-        <div className="bg-white border border-[#c3cbd6] rounded-lg p-4 min-h-[168px]">
-          <p className="text-xs font-bold text-[#5b6472]">Humedad</p>
-          <p className="mt-3 text-4xl font-extrabold text-[#101828] leading-none">{data.humedad} %</p>
-        </div>
-
-        <div className="bg-white border border-[#c3cbd6] rounded-lg p-4 min-h-[168px] flex flex-col items-center">
-          <div
-            className="relative w-[132px] h-[132px] rounded-full"
-            style={{
-              background: `conic-gradient(from 210deg, #2F6FED 0deg ${arcFilled}deg, #e5e7eb ${arcFilled}deg 300deg, transparent 300deg 360deg)`,
-              WebkitMask: 'radial-gradient(circle at center, transparent 42px, #000 43px)',
-              mask: 'radial-gradient(circle at center, transparent 42px, #000 43px)',
-            }}
-          />
-          <div className="-mt-[92px] mb-8 text-center leading-none">
-            <p className="text-2xl font-extrabold text-[#101828]">{velocidadPorcentaje}%</p>
-            <p className="mt-1 text-[10px] font-bold text-[#5b6472]">velocidad</p>
-          </div>
-          <p className="text-[11px] font-extrabold tracking-wide text-[#5b6472]">OPERACION</p>
+        <div className={cn(
+          'px-4 py-2 rounded-full text-sm font-medium',
+          data.estado === 'running' 
+            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+        )}>
+          {data.estado === 'running' ? 'En Operacion' : 'Detenido'}
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <Button
-          onClick={() => void runCommand('estado', 'running')}
-          disabled={data.estado === 'running' || controlsLocked}
-          className="h-12 md:w-44 bg-[#101828] hover:bg-black text-white font-extrabold rounded-lg"
-        >
-          {pendingPath === 'estado' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-          START
-        </Button>
-        <Button
-          onClick={() => void runCommand('estado', 'stopped')}
-          disabled={data.estado === 'stopped' || controlsLocked}
-          className="h-12 md:w-44 bg-[#e5e7eb] hover:bg-[#d7dde5] text-[#101828] font-extrabold rounded-lg border border-[#c3cbd6]"
-        >
-          STOP
-        </Button>
-        <Select
-          value={data.modo}
-          disabled={controlsLocked}
-          onValueChange={(value) => void runCommand('modo', value)}
-        >
-          <SelectTrigger className="h-12 md:w-52 bg-white border-[#c3cbd6] text-[#101828] font-extrabold">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUTOMATICO">AUTOMATICO</SelectItem>
-            <SelectItem value="MANUAL">MANUAL</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Sensor Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Temperatura */}
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                <Thermometer className="w-5 h-5 text-red-400" />
+              </div>
+              <span className="text-muted-foreground font-medium">Temperatura</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-bold text-foreground">{data.temperatura}</span>
+              <span className="text-2xl text-muted-foreground">°C</span>
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">SP:</span>
+              <Input
+                type="number"
+                value={data.setpoint}
+                onChange={(e) => onUpdate('setpoint', Number(e.target.value))}
+                className="w-20 h-8 text-center bg-secondary border-border"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Humedad */}
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <Droplets className="w-5 h-5 text-blue-400" />
+              </div>
+              <span className="text-muted-foreground font-medium">Humedad</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-bold text-foreground">{data.humedad}</span>
+              <span className="text-2xl text-muted-foreground">%</span>
+            </div>
+            <div className="mt-4 h-2 bg-secondary rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500 transition-all duration-500"
+                style={{ width: `${data.humedad}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Velocidad Gauge */}
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-cyan-400" />
+              </div>
+              <span className="text-muted-foreground font-medium">Velocidad</span>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="relative w-32 h-32">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    className="text-secondary"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    className="text-cyan-500 transition-all duration-500"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xs text-muted-foreground">V:</span>
+                  <span className="text-2xl font-bold text-foreground">{data.velocidad}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {data.modo === 'MANUAL' && (
-        <div className="bg-white border border-[#c3cbd6] rounded-lg p-4">
-          <p className="text-xs font-bold text-[#5b6472] mb-2">Velocidad manual</p>
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={data.velocidad}
-              disabled={controlsLocked}
-              onChange={(e) => handleVelocidadChange(Number(e.target.value))}
-              className="flex-1 accent-[#2F6FED]"
-            />
-            <span className="font-extrabold w-12 text-right">{data.velocidad}%</span>
+      {/* Controls */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Controles de Operacion</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Start/Stop Buttons */}
+            <div className="flex gap-4">
+              <Button
+                onClick={() => onUpdate('estado', 'running')}
+                disabled={data.estado === 'running'}
+                className="flex-1 h-14 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold disabled:opacity-50"
+              >
+                <Play className="w-5 h-5 mr-2" />
+                START
+              </Button>
+              <Button
+                onClick={() => onUpdate('estado', 'stopped')}
+                disabled={data.estado === 'stopped'}
+                className="flex-1 h-14 bg-gray-600 hover:bg-gray-700 text-white font-semibold disabled:opacity-50"
+              >
+                <Square className="w-5 h-5 mr-2" />
+                STOP
+              </Button>
+            </div>
+
+            {/* Mode Select */}
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">Modo de Operacion</label>
+              <Select
+                value={data.modo}
+                onValueChange={(value) => onUpdate('modo', value)}
+              >
+                <SelectTrigger className="h-14 bg-secondary border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AUTOMATICO">AUTOMATICO</SelectItem>
+                  <SelectItem value="MANUAL">MANUAL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Manual Speed Control */}
+          {data.modo === 'MANUAL' && (
+            <div className="mt-4 space-y-2">
+              <label className="text-sm text-muted-foreground">Velocidad Manual (0-100)</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={data.velocidad}
+                  onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
+                  className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+                <span className="text-foreground font-medium w-12 text-right">{data.velocidad}%</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Potencia */}
+      <Card className="bg-card border-border">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-orange-400" />
+              </div>
+              <div>
+                <span className="text-muted-foreground font-medium">Potencia Actual</span>
+                <p className="text-3xl font-bold text-foreground">{data.potencia} W</p>
+              </div>
+            </div>
+            <div className={cn(
+              'w-4 h-4 rounded-full',
+              data.movimiento ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+            )} title={data.movimiento ? 'Movimiento detectado' : 'Sin movimiento'} />
+          </div>
+        </CardContent>
+      </Card>
 
       <section
         id="voice-assistant-section"
