@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Thermometer, Droplets, Zap, Play, Square, Mic } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,15 @@ import type { VoiceIntent } from '@/components/voice-assistant'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
+const HEARTBEAT_MS = 25000
+
 interface HomePageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => void
   onVoiceSectionVisibleChange?: (visible: boolean) => void
   onVoiceCommand?: (intent: VoiceIntent) => Promise<string | null> | string | null
+  isDemo?: boolean
+  lastHeartbeatAt?: number | null
 }
 
 export function HomePage({
@@ -23,8 +27,17 @@ export function HomePage({
   onUpdate,
   onVoiceSectionVisibleChange,
   onVoiceCommand,
+  isDemo = false,
+  lastHeartbeatAt = null,
 }: HomePageProps) {
   const voiceSectionRef = useRef<HTMLElement>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const lecturaViva = !isDemo && lastHeartbeatAt !== null && now - lastHeartbeatAt <= HEARTBEAT_MS
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [])
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
   const circumference = 2 * Math.PI * 45
   const strokeDashoffset = circumference - (velocidadPorcentaje / 100) * circumference
@@ -55,13 +68,30 @@ export function HomePage({
         </div>
         <div className={cn(
           'px-4 py-2 rounded-full text-sm font-medium',
-          data.estado === 'running' 
-            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+          !lecturaViva
+            ? 'bg-secondary text-muted-foreground border border-border'
+            : data.estado === 'running'
+              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+              : 'bg-red-500/20 text-red-400 border border-red-500/30'
         )}>
-          {data.estado === 'running' ? 'En Operacion' : 'Detenido'}
+          {!lecturaViva ? 'Sin lectura' : data.estado === 'running' ? 'En Operacion' : 'Detenido'}
         </div>
       </div>
+
+      {!lecturaViva ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 space-y-1">
+            <p className="text-sm font-medium text-foreground">No se puede verificar la operacion</p>
+            <p className="text-xs text-muted-foreground">
+              {isDemo
+                ? 'La página está en datos de demostración, no en el equipo.'
+                : 'No llega una lectura reciente. Los números pueden ser la última guarda o un valor vacío.'}
+            </p>
+            <p className="text-xs text-muted-foreground">Revisar: HMI encendido, WiFi con enlace y Firebase en Leer+enviar.</p>
+            <p className="text-xs text-muted-foreground">Si falla: START, STOP y el modo se envían sin confirmar que el motor los ejecutó.</p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Sensor Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -229,7 +259,7 @@ export function HomePage({
               </div>
               <div>
                 <span className="text-muted-foreground font-medium">Potencia Actual</span>
-                <p className="text-3xl font-bold text-foreground">{data.potencia} W</p>
+                <p className="text-3xl font-bold text-foreground">{data.potencia} %</p>
               </div>
             </div>
             <div className={cn(

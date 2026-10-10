@@ -186,6 +186,8 @@ export default function Dashboard() {
             onUpdate={handleHmiUpdate}
             onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
             onVoiceCommand={handleVoiceCommand}
+            isDemo={isDemo}
+            lastHeartbeatAt={lastHeartbeatAt}
           />
         )
       case 'monitoreo':
@@ -203,6 +205,8 @@ export default function Dashboard() {
             onUpdate={handleHmiUpdate}
             onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
             onVoiceCommand={handleVoiceCommand}
+            isDemo={isDemo}
+            lastHeartbeatAt={lastHeartbeatAt}
           />
         )
     }
