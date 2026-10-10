@@ -5,7 +5,6 @@ import {
   Droplets,
   Thermometer,
   Zap,
-  PersonStanding,
   Mic,
   Sun,
   Moon,
@@ -18,6 +17,12 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowLeft,
+  Radar,
+  Clock,
+  Wrench,
+  Activity,
+  ClipboardList,
+  BarChart3,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -131,6 +136,12 @@ function MedicionSwitch({
 export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps) {
   const [fabVisible, setFabVisible] = useState(true)
   const [medicionAbierta, setMedicionAbierta] = useState(false)
+  const [autoAbierta, setAutoAbierta] = useState(false)
+  const [autoVista, setAutoVista] = useState<'panel' | 'radar' | 'perfiles'>('panel')
+  const [servicioAbierta, setServicioAbierta] = useState(false)
+  const [servicioVista, setServicioVista] = useState<
+    'panel' | 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen'
+  >('panel')
   const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true })
   const [spUnlocked, setSpUnlocked] = useState(false)
   const [pinOpen, setPinOpen] = useState(false)
@@ -373,7 +384,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         </CardContent>
       </Card>
       </div>
-      ) : (
+      ) : !autoAbierta && !servicioAbierta ? (
         <button
           type="button"
           onClick={() => setMedicionAbierta(true)}
@@ -385,54 +396,287 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
-      )}
+      ) : null}
 
-      {!medicionAbierta ? (
-      <>
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-lg text-foreground">Control</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <OptionRow
-            icon={PersonStanding}
-            color="text-purple-400"
-            bgColor="bg-purple-500/20"
-            label="ENCENDIDO INTELIGENTE"
-            detail={data.movimiento ? 'Hay presencia ahora.' : 'Sin presencia ahora.'}
-          >
-            <Switch
-              checked={data.config.sensorMovimiento}
-              onCheckedChange={(checked) => send('config/sensorMovimiento', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
-            <p className="font-medium text-foreground">Alcance de presencia</p>
-            <ChoiceRow
-              labels={alcanceLabels}
-              value={data.automatizacion.alcance}
-              onPick={(index) => send('automatizacion/alcance', index)}
-            />
-            <div className="flex items-center justify-between gap-4 pt-2">
-              <div>
-                <p className="text-sm text-foreground">Retencion</p>
-                <p className="text-xs text-muted-foreground">{(retencion / 1000).toFixed(1)} s despues de detectar</p>
+      {autoAbierta && autoVista === 'panel' ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setAutoAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Configuraciones
+          </button>
+          <Card className="bg-card border-border">
+            <CardContent className="p-0">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Radar className="w-5 h-5 text-purple-400 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">ENCENDIDO INTELIGENTE</p>
+                  <p className="text-xs text-muted-foreground">Radar de presencia - cerebro GPIO 13</p>
+                </div>
+                <MedicionSwitch
+                  checked={data.config.sensorMovimiento}
+                  onCheckedChange={(checked) => send('config/sensorMovimiento', checked)}
+                />
               </div>
-              <input
-                type="range"
-                min={500}
-                max={15000}
-                step={100}
-                value={retencion}
-                onChange={(e) => setRetencion(Number(e.target.value))}
-                onPointerUp={(e) => send('automatizacion/retencionMs', Number(e.currentTarget.value))}
-                className="w-36"
-              />
-            </div>
+              <button
+                type="button"
+                onClick={() => setAutoVista('radar')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Calibracion del radar</p>
+                  <p className="text-xs text-muted-foreground">Alcance, retencion y rapidez</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </CardContent>
+          </Card>
+          <Card className="bg-card border-border">
+            <CardContent className="p-0">
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground">ACTIVO AHORA</p>
+                  <span className={`text-[11px] font-bold ${data.config.sensorMovimiento && data.movimiento ? 'text-green-400' : 'text-muted-foreground'}`}>
+                    {!data.config.sensorMovimiento ? 'INACTIVO' : data.movimiento ? 'ACTIVO' : 'FUERA'}
+                  </span>
+                </div>
+                <p className="mt-1 font-medium text-foreground">Sin perfil activo</p>
+                <p className="text-xs text-muted-foreground">Abre Perfiles y horarios para configurar</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoVista('perfiles')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Perfiles y horarios</p>
+                  <p className="text-xs text-muted-foreground">La lista se guarda en el HMI</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {autoAbierta && autoVista === 'radar' ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setAutoVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Automatizacion
+          </button>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">CALIBRACION RADAR</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">PRESENCIA: {data.movimiento ? 'SI' : 'NO'}</p>
+              <div>
+                <p className="text-sm font-medium text-foreground mb-2">ALCANCE (filtro HMI)</p>
+                <ChoiceRow
+                  labels={alcanceLabels}
+                  value={data.automatizacion.alcance}
+                  onPick={(index) => send('automatizacion/alcance', index)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">RETENCION (tiempo del Si)</p>
+                  <p className="text-xs text-muted-foreground">{(retencion / 1000).toFixed(1)} s</p>
+                </div>
+                <input
+                  type="range"
+                  min={500}
+                  max={15000}
+                  step={100}
+                  value={retencion}
+                  onChange={(e) => setRetencion(Number(e.target.value))}
+                  onPointerUp={(e) => send('automatizacion/retencionMs', Number(e.currentTarget.value))}
+                  className="w-36"
+                />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">RAPIDEZ DE DETECCION</p>
+                <p className="text-xs text-muted-foreground mb-2">Rapida, Normal o Estable. Se ajusta en el HMI.</p>
+                <ChoiceRow labels={['Rapida', 'Normal', 'Estable']} value={1} onPick={() => undefined} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {autoAbierta && autoVista === 'perfiles' ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setAutoVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Automatizacion
+          </button>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">PERFILES Y HORARIOS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Crear, editar y elegir el perfil activo se hace en el HMI. Esta pagina todavia no recibe esa lista.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {servicioAbierta && servicioVista === 'panel' ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setServicioAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Configuraciones
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setServicioVista('pendientes')}
+              className="rounded-lg border border-border bg-card px-3 py-3 text-left hover:bg-secondary/40"
+            >
+              <p className="text-[11px] font-bold tracking-wide text-muted-foreground">PENDIENTES</p>
+              <p className="text-xs text-muted-foreground mt-1">Abrir lista</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setServicioVista('vencidas')}
+              className="rounded-lg border border-border bg-card px-3 py-3 text-left hover:bg-secondary/40"
+            >
+              <p className="text-[11px] font-bold tracking-wide text-muted-foreground">VENCIDAS</p>
+              <p className="text-xs text-muted-foreground mt-1">Abrir lista</p>
+            </button>
           </div>
-        </CardContent>
-      </Card>
+          <Card className="bg-card border-border">
+            <CardContent className="p-0">
+              <button
+                type="button"
+                onClick={() => setServicioVista('mantenimiento')}
+                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <Wrench className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">MANTENIMIENTO</p>
+                  <p className="text-xs text-muted-foreground">Lista completa / configurar</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setServicioVista('diagnostico')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <Activity className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">DIAGNOSTICO DE COMPONENTES</p>
+                  <p className="text-xs text-muted-foreground">Estado / pruebas</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setServicioVista('cumplimiento')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <ClipboardList className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">CUMPLIMIENTO</p>
+                  <p className="text-xs text-muted-foreground">Tareas completadas / comparacion</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setServicioVista('resumen')}
+                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
+              >
+                <BarChart3 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">RESUMEN SEMANAL</p>
+                  <p className="text-xs text-muted-foreground">Vista rapida / semana actual</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {servicioAbierta && servicioVista !== 'panel' ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setServicioVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Servicio
+          </button>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">
+                {servicioVista === 'pendientes'
+                  ? 'PENDIENTES'
+                  : servicioVista === 'vencidas'
+                    ? 'VENCIDAS'
+                    : servicioVista === 'mantenimiento'
+                      ? 'MANTENIMIENTO'
+                      : servicioVista === 'diagnostico'
+                        ? 'DIAGNOSTICO'
+                        : servicioVista === 'cumplimiento'
+                          ? 'CUMPLIMIENTO'
+                          : 'RESUMEN SEMANAL'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {servicioVista === 'pendientes'
+                  ? 'La lista de tareas pendientes se guarda en el HMI. Esta pagina todavia no recibe esas tareas.'
+                  : servicioVista === 'vencidas'
+                    ? 'La lista de tareas vencidas se guarda en el HMI. Esta pagina todavia no recibe esas tareas.'
+                    : servicioVista === 'mantenimiento'
+                      ? 'La lista completa, la bitacora y la configuracion de tareas se hacen en el HMI.'
+                      : servicioVista === 'diagnostico'
+                        ? 'Las pruebas de componentes se hacen en el HMI.'
+                        : servicioVista === 'cumplimiento'
+                          ? 'La comparacion de tareas completadas se calcula en el HMI. Esta pagina todavia no recibe ese historial.'
+                          : 'La vista rapida de la semana se arma en el HMI. Esta pagina todavia no recibe ese resumen.'}
+              </p>
+              {servicioVista === 'diagnostico' ? (
+                <p className="text-sm font-medium text-foreground">Fallas activas: {data.diag.fallas}</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {!medicionAbierta && !autoAbierta && !servicioAbierta ? (
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            setAutoVista('panel')
+            setAutoAbierta(true)
+          }}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">AUTOMATIZACION</p>
+            <p className="text-xs text-muted-foreground">Encendido inteligente</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setServicioVista('panel')
+            setServicioAbierta(true)
+          }}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">SERVICIO</p>
+            <p className="text-xs text-muted-foreground">Mantenimiento, diagnostico</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
 
       <Card className="bg-card border-border">
         <CardHeader>
