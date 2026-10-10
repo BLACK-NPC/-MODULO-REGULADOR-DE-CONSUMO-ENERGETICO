@@ -143,6 +143,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   const [autoVista, setAutoVista] = useState<'panel' | 'radar' | 'perfiles'>('panel')
   const [perfilActivo, setPerfilActivo] = useState<{ name: string; schedule: string } | null>(null)
   const [equipoAbierta, setEquipoAbierta] = useState(false)
+  const [sistemaAbierta, setSistemaAbierta] = useState(false)
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
   const [servicioVista, setServicioVista] = useState<
@@ -399,7 +400,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         </CardContent>
       </Card>
       </div>
-      ) : !autoAbierta && !servicioAbierta && !equipoAbierta ? (
+      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta ? (
         <button
           type="button"
           onClick={() => setMedicionAbierta(true)}
@@ -742,7 +743,97 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
         </div>
       ) : null}
 
-      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta ? (
+      {sistemaAbierta ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setSistemaAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Configuraciones
+          </button>
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg text-foreground">SISTEMA</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <OptionRow icon={Sun} color="text-amber-400" bgColor="bg-amber-500/20" label="BRILLO" detail={`${brillo} %`}>
+                <Switch
+                  checked={data.sistema.brilloOn}
+                  onCheckedChange={(checked) => send('sistema/brilloOn', checked)}
+                  className="data-[state=checked]:bg-green-500"
+                />
+              </OptionRow>
+              <div className="px-4">
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  disabled={!data.sistema.brilloOn}
+                  value={brillo}
+                  onChange={(e) => setBrillo(Number(e.target.value))}
+                  onPointerUp={(e) => send('sistema/brillo', Number(e.currentTarget.value))}
+                  className="w-full"
+                />
+              </div>
+              <OptionRow
+                icon={Moon}
+                color="text-sky-400"
+                bgColor="bg-sky-500/20"
+                label="STANDBY"
+                detail="Pantalla en reposo tras inactividad."
+              >
+                <Switch
+                  checked={data.sistema.suspensionOn}
+                  onCheckedChange={(checked) => send('sistema/suspensionOn', checked)}
+                  className="data-[state=checked]:bg-green-500"
+                />
+              </OptionRow>
+              <div className="px-1">
+                <ChoiceRow
+                  labels={sleepLabels}
+                  value={data.sistema.suspension}
+                  onPick={(index) => send('sistema/suspension', index)}
+                />
+              </div>
+              <OptionRow icon={Bell} color="text-orange-400" bgColor="bg-orange-500/20" label="CONFIRMACION" detail="Sonido al pulsar una accion.">
+                <Switch
+                  checked={data.sistema.beep}
+                  onCheckedChange={(checked) => send('sistema/beep', checked)}
+                  className="data-[state=checked]:bg-green-500"
+                />
+              </OptionRow>
+              <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-foreground">Duracion · {beepMs} ms</p>
+                  <input
+                    type="range"
+                    min={20}
+                    max={120}
+                    disabled={!data.sistema.beep}
+                    value={beepMs}
+                    onChange={(e) => setBeepMs(Number(e.target.value))}
+                    onPointerUp={(e) => send('sistema/beepMs', Number(e.currentTarget.value))}
+                    className="w-36"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-foreground">Dureza · {beepDuty} %</p>
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    disabled={!data.sistema.beep}
+                    value={beepDuty}
+                    onChange={(e) => setBeepDuty(Number(e.target.value))}
+                    onPointerUp={(e) => send('sistema/beepDuty', Number(e.currentTarget.value))}
+                    className="w-36"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta ? (
       <>
         <button
           type="button"
@@ -786,86 +877,23 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
+        <button
+          type="button"
+          onClick={() => setSistemaAbierta(true)}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">SISTEMA</p>
+            <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
 
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg text-foreground">Configuracion</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <OptionRow icon={Sun} color="text-amber-400" bgColor="bg-amber-500/20" label="BRILLO" detail={`${brillo} %`}>
-            <Switch
-              checked={data.sistema.brilloOn}
-              onCheckedChange={(checked) => send('sistema/brilloOn', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <div className="px-4">
-            <input
-              type="range"
-              min={10}
-              max={100}
-              disabled={!data.sistema.brilloOn}
-              value={brillo}
-              onChange={(e) => setBrillo(Number(e.target.value))}
-              onPointerUp={(e) => send('sistema/brillo', Number(e.currentTarget.value))}
-              className="w-full"
-            />
-          </div>
-          <OptionRow
-            icon={Moon}
-            color="text-sky-400"
-            bgColor="bg-sky-500/20"
-            label="STANDBY"
-            detail="Pantalla en reposo tras inactividad."
-          >
-            <Switch
-              checked={data.sistema.suspensionOn}
-              onCheckedChange={(checked) => send('sistema/suspensionOn', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <div className="px-1">
-            <ChoiceRow
-              labels={sleepLabels}
-              value={data.sistema.suspension}
-              onPick={(index) => send('sistema/suspension', index)}
-            />
-          </div>
-          <OptionRow icon={Bell} color="text-orange-400" bgColor="bg-orange-500/20" label="CONFIRMACION" detail="Sonido al pulsar una accion.">
-            <Switch
-              checked={data.sistema.beep}
-              onCheckedChange={(checked) => send('sistema/beep', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-foreground">Duracion · {beepMs} ms</p>
-              <input
-                type="range"
-                min={20}
-                max={120}
-                disabled={!data.sistema.beep}
-                value={beepMs}
-                onChange={(e) => setBeepMs(Number(e.target.value))}
-                onPointerUp={(e) => send('sistema/beepMs', Number(e.currentTarget.value))}
-                className="w-36"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-foreground">Dureza · {beepDuty} %</p>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                disabled={!data.sistema.beep}
-                value={beepDuty}
-                onChange={(e) => setBeepDuty(Number(e.target.value))}
-                onPointerUp={(e) => send('sistema/beepDuty', Number(e.currentTarget.value))}
-                className="w-36"
-              />
-            </div>
-          </div>
           <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
             <p className="font-medium text-foreground">FIREBASE</p>
             <p className="text-xs text-muted-foreground">Como habla la pagina con el equipo. La red WiFi se configura en el HMI.</p>
