@@ -24,6 +24,14 @@ import {
   ClipboardList,
   BarChart3,
   Factory,
+  Gauge,
+  Cloud,
+  Wifi,
+  Database,
+  SlidersHorizontal,
+  Crosshair,
+  List,
+  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -408,6 +416,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           onClick={() => setMedicionAbierta(true)}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Gauge className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">MEDICION</p>
             <p className="text-xs text-muted-foreground">Humedad, temperatura, potencia</p>
@@ -440,6 +449,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 onClick={() => setAutoVista('radar')}
                 className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
               >
+                <SlidersHorizontal className="w-4 h-4 text-purple-400 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Calibracion del radar</p>
                   <p className="text-xs text-muted-foreground">Alcance, retencion y rapidez</p>
@@ -539,6 +549,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               onClick={() => setServicioVista('pendientes')}
               className="rounded-lg border border-border bg-card px-3 py-3 text-left hover:bg-secondary/40"
             >
+              <List className="w-4 h-4 text-emerald-400 mb-1" />
               <p className="text-[11px] font-bold tracking-wide text-muted-foreground">PENDIENTES</p>
               <p className="text-xs text-muted-foreground mt-1">Abrir lista</p>
             </button>
@@ -547,6 +558,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               onClick={() => setServicioVista('vencidas')}
               className="rounded-lg border border-border bg-card px-3 py-3 text-left hover:bg-secondary/40"
             >
+              <AlertTriangle className="w-4 h-4 text-red-400 mb-1" />
               <p className="text-[11px] font-bold tracking-wide text-muted-foreground">VENCIDAS</p>
               <p className="text-xs text-muted-foreground mt-1">Abrir lista</p>
             </button>
@@ -679,6 +691,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 onClick={() => setEquipoVista('limites')}
                 className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
               >
+                <SlidersHorizontal className="w-4 h-4 text-amber-400 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Limites</p>
                   <p className="text-xs text-muted-foreground">Recomendado, configurado y de fabrica</p>
@@ -690,6 +703,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 onClick={() => setEquipoVista('calibracion')}
                 className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
               >
+                <Crosshair className="w-4 h-4 text-sky-400 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Calibracion</p>
                   <p className="text-xs text-muted-foreground">Iniciar y detener en el equipo</p>
@@ -701,6 +715,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 onClick={() => setEquipoVista('lista')}
                 className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
               >
+                <List className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Lista</p>
                   <p className="text-xs text-muted-foreground">Equipos guardados en el HMI</p>
@@ -853,7 +868,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               />
               {conectVista === 'wifi' ? (
                 <div className="rounded-lg border border-border p-4 space-y-2">
-                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground">RADIO WiFi</p>
+                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground flex items-center gap-2"><Wifi className="w-4 h-4" /> RADIO WiFi</p>
                   <p className="text-lg font-medium text-foreground">
                     {!data.conectividad.wifiRadio ? 'Apagado' : data.wifi.conectado ? 'Conectado' : 'Sin enlace'}
                   </p>
@@ -867,7 +882,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 </div>
               ) : (
                 <div className="rounded-lg border border-border p-4 space-y-3">
-                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground">MODO NUBE</p>
+                  <p className="text-[11px] font-bold tracking-wide text-muted-foreground flex items-center gap-2"><Database className="w-4 h-4" /> MODO NUBE</p>
                   <p className="text-lg font-medium text-foreground">{firebaseModes[data.conectividad.firebaseModo] ?? 'Apagado'}</p>
                   <p className="text-sm text-muted-foreground">
                     {['Sin enlace a la nube', 'Recibe; no publica', 'Publica; no escucha', 'Bidireccional'][data.conectividad.firebaseModo] ?? 'Sin enlace a la nube'}
@@ -894,6 +909,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           }}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Radar className="w-5 h-5 text-purple-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">AUTOMATIZACION</p>
             <p className="text-xs text-muted-foreground">Encendido inteligente</p>
@@ -908,6 +924,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           }}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Wrench className="w-5 h-5 text-amber-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">SERVICIO</p>
             <p className="text-xs text-muted-foreground">Mantenimiento, diagnostico</p>
@@ -922,6 +939,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           }}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Factory className="w-5 h-5 text-foreground shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">EQUIPO</p>
             <p className="text-xs text-muted-foreground">Perfil del equipo</p>
@@ -933,6 +951,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           onClick={() => setSistemaAbierta(true)}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Cpu className="w-5 h-5 text-sky-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">SISTEMA</p>
             <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion</p>
@@ -947,6 +966,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           }}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
         >
+          <Cloud className="w-5 h-5 text-blue-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">CONECTIVIDAD</p>
             <p className="text-xs text-muted-foreground">Wifi, Firebase</p>
