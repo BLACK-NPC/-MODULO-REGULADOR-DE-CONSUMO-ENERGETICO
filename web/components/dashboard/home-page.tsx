@@ -259,7 +259,7 @@ export function HomePage({
               </div>
               <div>
                 <span className="text-muted-foreground font-medium">Potencia Actual</span>
-                <p className="text-3xl font-bold text-foreground">{data.potencia} %</p>
+                <p className="text-3xl font-bold text-foreground">{data.potencia} W</p>
               </div>
             </div>
             <div className={cn(

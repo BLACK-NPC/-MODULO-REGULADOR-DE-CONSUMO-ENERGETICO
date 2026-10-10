@@ -99,7 +99,7 @@ export function EquipoVistas({
                 <div className="grid grid-cols-3 gap-2">
                   <Read label="Temp." value={`${lecturas.temp} C`} />
                   <Read label="Humedad" value={`${lecturas.hum} %`} />
-                  <Read label="Potencia" value={`${lecturas.pot} %`} />
+                  <Read label="Potencia" value={`${lecturas.pot} W`} />
                 </div>
               ) : null}
             </>

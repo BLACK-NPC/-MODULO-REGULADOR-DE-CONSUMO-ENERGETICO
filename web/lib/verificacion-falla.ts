@@ -246,7 +246,7 @@ export function buildVerificacionFalla(entrada: Entrada): VerificacionItem[] {
         'revisar',
         'El sensor de potencia está apagado en la configuración.',
         'Activarlo en Medición.',
-        'No hay consumo actual ni comparación con lo habitual. La potencia que publica el equipo es un porcentaje, no amperios.',
+        'No hay consumo actual en vatios ni comparación con lo habitual.',
       ),
     )
   } else {
@@ -257,10 +257,10 @@ export function buildVerificacionFalla(entrada: Entrada): VerificacionItem[] {
         'Potencia',
         'verificado',
         potDia
-          ? `Lectura actual ${data.potencia} %. Hoy fue de ${potDia.min} a ${potDia.max} %. Es porcentaje, no corriente.`
-          : `Lectura actual ${data.potencia} %. No hay muestras de hoy para compararla. Es porcentaje, no corriente.`,
+          ? `Lectura actual ${data.potencia} W. Hoy fue de ${potDia.min} a ${potDia.max} W. Es potencia, no corriente.`
+          : `Lectura actual ${data.potencia} W. No hay muestras de hoy para compararla. Es potencia, no corriente.`,
         data.config.guardarPotencia ? 'Mantener el sensor y el registro activos.' : 'Activar Guardar potencia si se quiere la curva del día.',
-        'Un porcentaje alto no alcanza para afirmar que el motor trabajó forzado.',
+        'Un valor alto en vatios no alcanza para afirmar que el motor trabajó forzado.',
       ),
     )
   }

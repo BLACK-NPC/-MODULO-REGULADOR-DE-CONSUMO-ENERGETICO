@@ -60,7 +60,7 @@ export function buildAVCAlerts(
       title: 'POTENCIA',
       state: signalState(potenciaActive, true),
       message: potenciaActive ? 'Lectura de potencia activa.' : 'No hay lectura valida reciente del sensor de potencia.',
-      detail: `${data.potencia} %`,
+      detail: `${data.potencia} W`,
     },
     {
       id: 'movimiento',

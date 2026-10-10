@@ -171,7 +171,7 @@ export function ServicioVistas({
             <>
               <div className="grid grid-cols-2 gap-2">
                 <Stat label="Fallas" value={String(Math.max(fallas, operacion.tipos.length))} detail="activas ahora" />
-                <Stat label="Consumo" value={`${operacion.consumo} %`} detail={operacion.consumoDia === null ? 'lectura actual' : `dia ${operacion.consumoDia} %`} />
+                <Stat label="Consumo" value={`${operacion.consumo} W`} detail={operacion.consumoDia === null ? 'lectura actual' : `dia ${operacion.consumoDia} W`} />
               </div>
               <div className="rounded-md border border-border px-3 py-2 space-y-1">
                 <p className="text-[11px] font-bold text-muted-foreground">TIPO DE FALLAS</p>
@@ -190,8 +190,8 @@ export function ServicioVistas({
               </div>
               <p className="text-sm text-muted-foreground">
                 {operacion.tipos.length === 0
-                  ? `Diagnostico: operacion normal. Consumo actual ${operacion.consumo} %.`
-                  : `Diagnostico: ${operacion.tipos.length} falla(s) mientras el motor esta ${operacion.estado === 'running' ? 'encendido' : 'apagado'} y el consumo es ${operacion.consumo} %.`}
+                  ? `Diagnostico: operacion normal. Consumo actual ${operacion.consumo} W.`
+                  : `Diagnostico: ${operacion.tipos.length} falla(s) mientras el motor esta ${operacion.estado === 'running' ? 'encendido' : 'apagado'} y el consumo es ${operacion.consumo} W.`}
               </p>
             </>
           ) : null}
