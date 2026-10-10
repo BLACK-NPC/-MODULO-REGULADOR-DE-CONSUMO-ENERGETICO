@@ -8,7 +8,6 @@ import {
   SERVICIO_TYPES,
   cumplimiento,
   loadServicio,
-  logsInWeek,
   nextDue,
   saveServicio,
   splitTasks,
@@ -32,11 +31,21 @@ export function ServicioVistas({
   onBack,
   fallas,
   sensores,
+  operacion,
 }: {
   vista: Vista
   onBack: () => void
   fallas: number
   sensores: { nombre: string; activo: boolean }[]
+  operacion: {
+    estado: string
+    modo: string
+    setpoint: number
+    presencia: boolean
+    consumo: number
+    consumoDia: number | null
+    tipos: string[]
+  }
 }) {
   const [store, setStore] = useState(loadServicio)
   const [name, setName] = useState('')
@@ -116,17 +125,40 @@ export function ServicioVistas({
             </>
           ) : null}
 
-          {vista === 'cumplimiento' || vista === 'resumen' ? (
+          {vista === 'cumplimiento' ? (
             <div className="grid grid-cols-2 gap-2">
               <Stat label="Esta semana" value={`${stats.actual} %`} detail={`${stats.hechas} hechas`} />
-              <Stat label="Semana pasada" value={String(stats.pasadas)} detail="intervenciones" />
-              {vista === 'resumen' ? (
-                <>
-                  <Stat label="Vencidas" value={String(stats.vencidas)} detail="ahora" />
-                  <Stat label="Fallas" value={String(fallas)} detail="activas" />
-                </>
-              ) : null}
+              <Stat label="Vencidas" value={String(stats.vencidas)} detail="ahora" />
             </div>
+          ) : null}
+
+          {vista === 'resumen' ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Fallas" value={String(Math.max(fallas, operacion.tipos.length))} detail="activas ahora" />
+                <Stat label="Consumo" value={`${operacion.consumo} %`} detail={operacion.consumoDia === null ? 'lectura actual' : `dia ${operacion.consumoDia} %`} />
+              </div>
+              <div className="rounded-md border border-border px-3 py-2 space-y-1">
+                <p className="text-[11px] font-bold text-muted-foreground">TIPO DE FALLAS</p>
+                {operacion.tipos.length === 0 ? (
+                  <p className="text-sm text-foreground">Ninguna falla activa.</p>
+                ) : (
+                  operacion.tipos.map((tipo) => (
+                    <p key={tipo} className="text-sm text-foreground">{tipo}</p>
+                  ))
+                )}
+              </div>
+              <div className="rounded-md border border-border px-3 py-2 space-y-1">
+                <p className="text-[11px] font-bold text-muted-foreground">QUE ESTA OPERANDO</p>
+                <p className="text-sm text-foreground">Motor {operacion.estado === 'running' ? 'encendido' : 'apagado'} · {operacion.modo}</p>
+                <p className="text-sm text-foreground">Setpoint {operacion.setpoint} C · presencia {operacion.presencia ? 'SI' : 'NO'}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {operacion.tipos.length === 0
+                  ? `Diagnostico: operacion normal. Consumo actual ${operacion.consumo} %.`
+                  : `Diagnostico: ${operacion.tipos.length} falla(s) mientras el motor esta ${operacion.estado === 'running' ? 'encendido' : 'apagado'} y el consumo es ${operacion.consumo} %.`}
+              </p>
+            </>
           ) : null}
 
           {vista === 'pendientes' || vista === 'vencidas' || vista === 'mantenimiento' ? (
@@ -215,11 +247,6 @@ export function ServicioVistas({
             </>
           ) : null}
 
-          {vista === 'resumen' ? (
-            <p className="text-xs text-muted-foreground">
-              Intervenciones de esta semana: {logsInWeek(store.logs, 'actual').length}. Semana pasada: {logsInWeek(store.logs, 'pasada').length}.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
     </div>

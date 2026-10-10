@@ -54,6 +54,27 @@ const SP_PIN = '2011'
 const sleepLabels = ['15s', '30s', '1m', '2m', '5m', '10m', 'Nunca']
 const firebaseModes = ['Apagado', 'Solo leer', 'Solo enviar', 'Leer+enviar']
 const alcanceLabels = ['Cerca', 'Media', 'Lejos']
+const diasHistorico = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
+
+function promedioPotenciaDia(historico: AVCData['historico']): number | null {
+  const dia = diasHistorico[new Date().getDay()]
+  const muestras = historico[dia]?.potencia?.filter((value) => Number.isFinite(value)) ?? []
+  if (muestras.length === 0) {
+    return null
+  }
+  const total = muestras.reduce((sum, value) => sum + value, 0)
+  return Math.round(total / muestras.length)
+}
+
+function tiposDeFalla(data: AVCData): string[] {
+  const tipos: string[] = []
+  if (!data.config.sensorTemperatura) tipos.push('Temperatura inactiva')
+  if (!data.config.sensorHumedad) tipos.push('Humedad inactiva')
+  if (!data.config.sensorPotencia) tipos.push('Potencia inactiva')
+  if (!data.wifi.conectado) tipos.push('WiFi sin enlace')
+  if (data.diag.fallas > 0) tipos.push(`Equipo reporta ${data.diag.fallas} falla(s)`)
+  return tipos
+}
 
 function OptionRow({
   icon: Icon,
@@ -625,7 +646,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
                 <BarChart3 className="w-4 h-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">RESUMEN SEMANAL</p>
-                  <p className="text-xs text-muted-foreground">Vista rapida / semana actual</p>
+                  <p className="text-xs text-muted-foreground">Fallas, operacion y consumo</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </button>
@@ -645,6 +666,15 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
             { nombre: 'Potencia', activo: data.config.sensorPotencia },
             { nombre: 'Presencia', activo: data.config.sensorMovimiento },
           ]}
+          operacion={{
+            estado: data.estado,
+            modo: data.modo,
+            setpoint: data.setpoint,
+            presencia: data.movimiento,
+            consumo: data.potencia,
+            consumoDia: promedioPotenciaDia(data.historico),
+            tipos: tiposDeFalla(data),
+          }}
         />
       ) : null}
 
