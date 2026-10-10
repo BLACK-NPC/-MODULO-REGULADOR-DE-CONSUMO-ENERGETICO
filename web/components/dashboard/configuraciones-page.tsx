@@ -39,6 +39,8 @@ import { Label } from '@/components/ui/label'
 import { FAB_HIDDEN_CHANGE_EVENT, isFabHidden, setFabHidden } from '@/lib/fab-storage'
 import type { AVCData } from '@/hooks/use-avc-data'
 import { PerfilesHorarios } from '@/components/dashboard/perfiles-horarios'
+import { ServicioVistas } from '@/components/dashboard/servicio-vistas'
+import { EquipoVistas } from '@/components/dashboard/equipo-vistas'
 import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
 import type { HmiCommandResult } from '@/lib/hmi-command'
 
@@ -154,6 +156,7 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   const [sistemaAbierta, setSistemaAbierta] = useState(false)
   const [conectAbierta, setConectAbierta] = useState(false)
   const [conectVista, setConectVista] = useState<'wifi' | 'firebase'>('wifi')
+  const [rapidez, setRapidez] = useState(1)
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
   const [servicioVista, setServicioVista] = useState<
@@ -174,6 +177,12 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
   useEffect(() => setBeepMs(data.sistema.beepMs), [data.sistema.beepMs])
   useEffect(() => setBeepDuty(data.sistema.beepDuty), [data.sistema.beepDuty])
   useEffect(() => setRetencion(data.automatizacion.retencionMs), [data.automatizacion.retencionMs])
+  useEffect(() => {
+    const stored = window.localStorage.getItem('ecopulse-rapidez')
+    if (stored === '0' || stored === '1' || stored === '2') {
+      setRapidez(Number(stored))
+    }
+  }, [])
   useEffect(() => {
     function syncPerfil() {
       const profile = currentProfile(loadSmartProfileStore())
@@ -525,8 +534,15 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">RAPIDEZ DE DETECCION</p>
-                <p className="text-xs text-muted-foreground mb-2">Rapida, Normal o Estable. Se ajusta en el HMI.</p>
-                <ChoiceRow labels={['Rapida', 'Normal', 'Estable']} value={1} onPick={() => undefined} />
+                <p className="text-xs text-muted-foreground mb-2">Rapida, Normal o Estable.</p>
+                <ChoiceRow
+                  labels={['Rapida', 'Normal', 'Estable']}
+                  value={rapidez}
+                  onPick={(index) => {
+                    setRapidez(index)
+                    window.localStorage.setItem('ecopulse-rapidez', String(index))
+                  }}
+                />
               </div>
             </CardContent>
           </Card>
@@ -619,47 +635,17 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
       ) : null}
 
       {servicioAbierta && servicioVista !== 'panel' ? (
-        <div className="space-y-3">
-          <button type="button" onClick={() => setServicioVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <ArrowLeft className="w-4 h-4" />
-            Servicio
-          </button>
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg text-foreground">
-                {servicioVista === 'pendientes'
-                  ? 'PENDIENTES'
-                  : servicioVista === 'vencidas'
-                    ? 'VENCIDAS'
-                    : servicioVista === 'mantenimiento'
-                      ? 'MANTENIMIENTO'
-                      : servicioVista === 'diagnostico'
-                        ? 'DIAGNOSTICO'
-                        : servicioVista === 'cumplimiento'
-                          ? 'CUMPLIMIENTO'
-                          : 'RESUMEN SEMANAL'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {servicioVista === 'pendientes'
-                  ? 'La lista de tareas pendientes se guarda en el HMI. Esta pagina todavia no recibe esas tareas.'
-                  : servicioVista === 'vencidas'
-                    ? 'La lista de tareas vencidas se guarda en el HMI. Esta pagina todavia no recibe esas tareas.'
-                    : servicioVista === 'mantenimiento'
-                      ? 'La lista completa, la bitacora y la configuracion de tareas se hacen en el HMI.'
-                      : servicioVista === 'diagnostico'
-                        ? 'Las pruebas de componentes se hacen en el HMI.'
-                        : servicioVista === 'cumplimiento'
-                          ? 'La comparacion de tareas completadas se calcula en el HMI. Esta pagina todavia no recibe ese historial.'
-                          : 'La vista rapida de la semana se arma en el HMI. Esta pagina todavia no recibe ese resumen.'}
-              </p>
-              {servicioVista === 'diagnostico' ? (
-                <p className="text-sm font-medium text-foreground">Fallas activas: {data.diag.fallas}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
+        <ServicioVistas
+          vista={servicioVista}
+          onBack={() => setServicioVista('panel')}
+          fallas={data.diag.fallas}
+          sensores={[
+            { nombre: 'Humedad', activo: data.config.sensorHumedad },
+            { nombre: 'Temperatura', activo: data.config.sensorTemperatura },
+            { nombre: 'Potencia', activo: data.config.sensorPotencia },
+            { nombre: 'Presencia', activo: data.config.sensorMovimiento },
+          ]}
+        />
       ) : null}
 
       {equipoAbierta && equipoVista === 'panel' ? (
@@ -728,36 +714,11 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
       ) : null}
 
       {equipoAbierta && equipoVista !== 'panel' ? (
-        <div className="space-y-3">
-          <button type="button" onClick={() => setEquipoVista('panel')} className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <ArrowLeft className="w-4 h-4" />
-            Equipo
-          </button>
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg text-foreground">
-                {equipoVista === 'perfil'
-                  ? 'Perfil'
-                  : equipoVista === 'limites'
-                    ? 'Limites'
-                    : equipoVista === 'calibracion'
-                      ? 'Calibracion'
-                      : 'Lista'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {equipoVista === 'perfil'
-                  ? 'El modelo y las especificaciones se guardan en el HMI. Esta pagina todavia no recibe ese perfil.'
-                  : equipoVista === 'limites'
-                    ? 'Los limites recomendado, configurado y de fabrica se ajustan en el HMI.'
-                    : equipoVista === 'calibracion'
-                      ? 'La calibracion se inicia y se detiene en el HMI. Esta pagina no recibe esas lecturas.'
-                      : 'La lista de equipos guardados queda en el HMI. Esta pagina todavia no recibe esas fichas.'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <EquipoVistas
+          vista={equipoVista}
+          onBack={() => setEquipoVista('panel')}
+          lecturas={{ temp: data.temperatura, hum: data.humedad, pot: data.potencia }}
+        />
       ) : null}
 
       {sistemaAbierta ? (
