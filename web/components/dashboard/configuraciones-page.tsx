@@ -1,11 +1,25 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { Droplets, Thermometer, Zap, PersonStanding, Mic, Sun, Moon, Bell } from 'lucide-react'
+import {
+  Droplets,
+  Thermometer,
+  Zap,
+  PersonStanding,
+  Mic,
+  Sun,
+  Moon,
+  Bell,
+  FileText,
+  Cpu,
+  ArrowUp,
+  ArrowDown,
+  Lock,
+  ChevronDown,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { FAB_HIDDEN_CHANGE_EVENT, isFabHidden, setFabHidden } from '@/lib/fab-storage'
 import type { AVCData } from '@/hooks/use-avc-data'
 import type { HmiCommandResult } from '@/lib/hmi-command'
@@ -14,6 +28,8 @@ interface ConfiguracionesPageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => Promise<HmiCommandResult>
 }
+
+const SP_PIN = '2011'
 
 const sleepLabels = ['15s', '30s', '1m', '2m', '5m', '10m', 'Nunca']
 const firebaseModes = ['Apagado', 'Solo leer', 'Solo enviar', 'Leer+enviar']
@@ -79,8 +95,45 @@ function ChoiceRow({
   )
 }
 
+function StatusText({ on }: { on: boolean }) {
+  return (
+    <span className={`text-[11px] font-bold tracking-wide ${on ? 'text-green-400' : 'text-muted-foreground'}`}>
+      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${on ? 'bg-green-400' : 'bg-muted-foreground'}`} />
+      {on ? 'ACTIVO' : 'INACTIVO'}
+    </span>
+  )
+}
+
+function MedicionSwitch({
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+        className="data-[state=checked]:bg-green-500"
+      />
+      <StatusText on={checked && !disabled} />
+    </div>
+  )
+}
+
 export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps) {
   const [fabVisible, setFabVisible] = useState(true)
+  const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true })
+  const [spUnlocked, setSpUnlocked] = useState(false)
+  const [pinOpen, setPinOpen] = useState(false)
+  const [pinDraft, setPinDraft] = useState('')
+  const [pinError, setPinError] = useState(false)
+  const [pendingDht, setPendingDht] = useState<11 | 22 | null>(null)
   const [brillo, setBrillo] = useState(data.sistema.brillo)
   const [beepMs, setBeepMs] = useState(data.sistema.beepMs)
   const [beepDuty, setBeepDuty] = useState(data.sistema.beepDuty)
@@ -108,57 +161,210 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
     void onUpdate(path, value)
   }
 
+  function toggleGroup(key: 'hum' | 'temp' | 'pow') {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function requestSpChange(path: 'config/spMax' | 'config/spMin', next: number) {
+    if (!spUnlocked) {
+      setPinDraft('')
+      setPinError(false)
+      setPinOpen(true)
+      return
+    }
+    const value = Math.min(100, Math.max(0, next))
+    if (path === 'config/spMax' && value <= data.config.spMin) return
+    if (path === 'config/spMin' && value >= data.config.spMax) return
+    send(path, value)
+  }
+
+  function submitPin() {
+    if (pinDraft === SP_PIN) {
+      setSpUnlocked(true)
+      setPinOpen(false)
+      setPinError(false)
+      setPinDraft('')
+      return
+    }
+    setPinError(true)
+    setPinDraft('')
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Configuraciones</h2>
-        <p className="text-muted-foreground">Control, monitoreo y configuracion del equipo</p>
+        <p className="text-muted-foreground">Medicion, control y configuracion del equipo</p>
       </div>
+
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="text-lg text-foreground">Medicion</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-secondary/40">
+              <Droplets className="w-5 h-5 text-blue-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">CONTROL DE HUMEDAD</p>
+                <p className="text-xs text-muted-foreground">Mantiene la humedad en el rango definido.</p>
+              </div>
+              <MedicionSwitch
+                checked={data.config.sensorHumedad}
+                onCheckedChange={(checked) => send('config/sensorHumedad', checked)}
+              />
+              <button type="button" onClick={() => toggleGroup('hum')} aria-label="Abrir humedad">
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openGroups.hum ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {openGroups.hum ? (
+              <div className="border-t border-border px-4 py-3 flex items-center gap-3">
+                <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Registro de humedad</p>
+                  <p className="text-xs text-muted-foreground">Almacena los datos en la memoria.</p>
+                </div>
+                <MedicionSwitch
+                  checked={data.config.guardarHumedad}
+                  disabled={!data.config.sensorHumedad}
+                  onCheckedChange={(checked) => send('config/guardarHumedad', checked)}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-secondary/40">
+              <Thermometer className="w-5 h-5 text-red-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">CONTROL DE TEMPERATURA</p>
+                <p className="text-xs text-muted-foreground">Mantiene la temperatura en el rango definido.</p>
+              </div>
+              <MedicionSwitch
+                checked={data.config.sensorTemperatura}
+                onCheckedChange={(checked) => send('config/sensorTemperatura', checked)}
+              />
+              <button type="button" onClick={() => toggleGroup('temp')} aria-label="Abrir temperatura">
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openGroups.temp ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {openGroups.temp ? (
+              <div className="border-t border-border divide-y divide-border">
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Registro de temperatura</p>
+                    <p className="text-xs text-muted-foreground">Almacena los datos en la memoria.</p>
+                  </div>
+                  <MedicionSwitch
+                    checked={data.config.guardarTemperatura}
+                    disabled={!data.config.sensorTemperatura}
+                    onCheckedChange={(checked) => send('config/guardarTemperatura', checked)}
+                  />
+                </div>
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <Cpu className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">SENSOR T/H</p>
+                    <p className="text-xs text-muted-foreground">Modelo de sensor.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {([11, 22] as const).map((model) => {
+                      const on = data.config.dht === model
+                      return (
+                        <button
+                          key={model}
+                          type="button"
+                          onClick={() => {
+                            if (model === data.config.dht) return
+                            setPendingDht(model)
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold border ${
+                            on
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-secondary/50 text-muted-foreground border-border'
+                          }`}
+                        >
+                          DHT{model}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <ArrowUp className="w-4 h-4 text-green-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Temperatura maxima</p>
+                    <p className="text-xs text-muted-foreground">Limite superior.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="w-7 h-7 rounded border border-border text-foreground" onClick={() => requestSpChange('config/spMax', data.config.spMax + 1)}>+</button>
+                    <span className="min-w-14 text-center text-sm font-bold text-foreground">{data.config.spMax}°C</span>
+                    <button type="button" className="w-7 h-7 rounded border border-border text-foreground" onClick={() => requestSpChange('config/spMax', data.config.spMax - 1)}>−</button>
+                    <button type="button" className="flex flex-col items-center text-muted-foreground" onClick={() => { setPinDraft(''); setPinError(false); setPinOpen(true) }}>
+                      <Lock className="w-4 h-4" />
+                      <span className="text-[9px] font-bold">{spUnlocked ? 'LIBRE' : 'BLOQUEADO'}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <ArrowDown className="w-4 h-4 text-blue-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Temperatura minima</p>
+                    <p className="text-xs text-muted-foreground">Limite inferior.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="w-7 h-7 rounded border border-border text-foreground" onClick={() => requestSpChange('config/spMin', data.config.spMin + 1)}>+</button>
+                    <span className="min-w-14 text-center text-sm font-bold text-foreground">{data.config.spMin}°C</span>
+                    <button type="button" className="w-7 h-7 rounded border border-border text-foreground" onClick={() => requestSpChange('config/spMin', data.config.spMin - 1)}>−</button>
+                    <button type="button" className="flex flex-col items-center text-muted-foreground" onClick={() => { setPinDraft(''); setPinError(false); setPinOpen(true) }}>
+                      <Lock className="w-4 h-4" />
+                      <span className="text-[9px] font-bold">{spUnlocked ? 'LIBRE' : 'BLOQUEADO'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-secondary/40">
+              <Zap className="w-5 h-5 text-yellow-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">CONTROL DE POTENCIA</p>
+                <p className="text-xs text-muted-foreground">Mantiene el consumo en el rango definido.</p>
+              </div>
+              <MedicionSwitch
+                checked={data.config.sensorPotencia}
+                onCheckedChange={(checked) => send('config/sensorPotencia', checked)}
+              />
+              <button type="button" onClick={() => toggleGroup('pow')} aria-label="Abrir potencia">
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openGroups.pow ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {openGroups.pow ? (
+              <div className="border-t border-border px-4 py-3 flex items-center gap-3">
+                <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Registro de potencia</p>
+                  <p className="text-xs text-muted-foreground">Almacena los datos en la memoria.</p>
+                </div>
+                <MedicionSwitch
+                  checked={data.config.guardarPotencia}
+                  disabled={!data.config.sensorPotencia}
+                  onCheckedChange={(checked) => send('config/guardarPotencia', checked)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg text-foreground">Control</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <OptionRow
-            icon={Droplets}
-            color="text-blue-400"
-            bgColor="bg-blue-500/20"
-            label="CONTROL DE HUMEDAD"
-            detail="Mantiene la humedad en el rango definido."
-          >
-            <Switch
-              checked={data.config.sensorHumedad}
-              onCheckedChange={(checked) => send('config/sensorHumedad', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <OptionRow
-            icon={Thermometer}
-            color="text-red-400"
-            bgColor="bg-red-500/20"
-            label="CONTROL DE TEMPERATURA"
-            detail="Mantiene la temperatura en el rango definido."
-          >
-            <Switch
-              checked={data.config.sensorTemperatura}
-              onCheckedChange={(checked) => send('config/sensorTemperatura', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <OptionRow
-            icon={Zap}
-            color="text-yellow-400"
-            bgColor="bg-yellow-500/20"
-            label="CONTROL DE POTENCIA"
-            detail="Mantiene el consumo de potencia en el rango definido."
-          >
-            <Switch
-              checked={data.config.sensorPotencia}
-              onCheckedChange={(checked) => send('config/sensorPotencia', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
           <OptionRow
             icon={PersonStanding}
             color="text-purple-400"
@@ -172,41 +378,6 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               className="data-[state=checked]:bg-green-500"
             />
           </OptionRow>
-          <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
-            <p className="font-medium text-foreground">SENSOR TEMP. / HUM.</p>
-            <p className="text-xs text-muted-foreground">Selecciona el modelo de sensor que usas.</p>
-            <ChoiceRow
-              labels={['DHT11', 'DHT22']}
-              value={data.config.dht === 22 ? 1 : 0}
-              onPick={(index) => send('config/dht', index === 1 ? 22 : 11)}
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-2">
-              <Label className="text-foreground">Temperatura maxima</Label>
-              <p className="text-xs text-muted-foreground">Limite superior de temperatura.</p>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                key={`spmax-${data.config.spMax}`}
-                defaultValue={data.config.spMax}
-                onBlur={(e) => send('config/spMax', Number(e.target.value))}
-              />
-            </div>
-            <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-2">
-              <Label className="text-foreground">Temperatura minima</Label>
-              <p className="text-xs text-muted-foreground">Limite inferior de temperatura.</p>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                key={`spmin-${data.config.spMin}`}
-                defaultValue={data.config.spMin}
-                onBlur={(e) => send('config/spMin', Number(e.target.value))}
-              />
-            </div>
-          </div>
           <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
             <p className="font-medium text-foreground">Alcance de presencia</p>
             <ChoiceRow
@@ -231,59 +402,6 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-lg text-foreground">Monitoreo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <OptionRow
-            icon={Droplets}
-            color="text-blue-400"
-            bgColor="bg-blue-500/20"
-            label="REGISTRO DE HUMEDAD"
-            detail="Almacena los datos en la memoria."
-          >
-            <Switch
-              checked={data.config.guardarHumedad}
-              disabled={!data.config.sensorHumedad}
-              onCheckedChange={(checked) => send('config/guardarHumedad', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <OptionRow
-            icon={Thermometer}
-            color="text-red-400"
-            bgColor="bg-red-500/20"
-            label="REGISTRO DE TEMPERATURA"
-            detail="Almacena los datos en la memoria."
-          >
-            <Switch
-              checked={data.config.guardarTemperatura}
-              disabled={!data.config.sensorTemperatura}
-              onCheckedChange={(checked) => send('config/guardarTemperatura', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <OptionRow
-            icon={Zap}
-            color="text-yellow-400"
-            bgColor="bg-yellow-500/20"
-            label="REGISTRO DE POTENCIA"
-            detail="Almacena los datos en la memoria."
-          >
-            <Switch
-              checked={data.config.guardarPotencia}
-              disabled={!data.config.sensorPotencia}
-              onCheckedChange={(checked) => send('config/guardarPotencia', checked)}
-              className="data-[state=checked]:bg-green-500"
-            />
-          </OptionRow>
-          <p className="text-sm text-muted-foreground">
-            La presencia no guarda historial. Solo enciende o apaga el encendido inteligente.
-          </p>
         </CardContent>
       </Card>
 
@@ -410,6 +528,52 @@ export function ConfiguracionesPage({ data, onUpdate }: ConfiguracionesPageProps
           </div>
         </CardContent>
       </Card>
+
+      {pendingDht !== null ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-4 space-y-3">
+            <p className="font-medium text-foreground">Usar DHT{pendingDht}?</p>
+            <p className="text-sm text-muted-foreground">Afecta temp y humedad. Se reinicia el sensor.</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-3 py-2 rounded-lg border border-border text-foreground" onClick={() => setPendingDht(null)}>Cancelar</button>
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg bg-primary text-primary-foreground"
+                onClick={() => {
+                  send('config/dht', pendingDht)
+                  setPendingDht(null)
+                }}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pinOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-4 space-y-3">
+            <p className="font-medium text-foreground">PIN setpoints (4 digitos)</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={pinDraft}
+              onChange={(e) => {
+                setPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))
+                setPinError(false)
+              }}
+              className="w-full h-10 rounded-lg border border-border bg-secondary px-3 text-foreground"
+            />
+            {pinError ? <p className="text-sm text-red-400">PIN incorrecto.</p> : null}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-3 py-2 rounded-lg border border-border text-foreground" onClick={() => setPinOpen(false)}>Cancelar</button>
+              <button type="button" className="px-3 py-2 rounded-lg bg-primary text-primary-foreground" onClick={submitPin}>Aceptar</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
