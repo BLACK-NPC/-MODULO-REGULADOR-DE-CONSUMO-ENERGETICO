@@ -72,3 +72,53 @@ export async function fetchWeatherSummary(city: string): Promise<string> {
   const weather = await fetchWeatherByCity(city)
   return formatWeatherSummary(weather)
 }
+
+export interface PronosticoHora {
+  hora: string
+  temperatura: number
+  humedad: number
+  lluvia: number | null
+}
+
+export interface Pronostico {
+  ciudad: string
+  publicado: string
+  temperatura: number
+  humedad: number
+  horas: PronosticoHora[]
+}
+
+export async function fetchPronostico(city: string): Promise<Pronostico> {
+  const geoResponse = await fetch(
+    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=es`
+  )
+  const geoData = await geoResponse.json()
+
+  if (!geoData.results?.length) {
+    throw new Error('Ciudad no encontrada. Intenta con otro nombre.')
+  }
+
+  const { latitude, longitude, name, country } = geoData.results[0]
+  const response = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability&timezone=auto&forecast_days=2`
+  )
+  const data = await response.json()
+
+  const times: string[] = data.hourly?.time ?? []
+  const horas: PronosticoHora[] = times.map((time, index) => ({
+    hora: time,
+    temperatura: Number(data.hourly.temperature_2m[index]),
+    humedad: Number(data.hourly.relative_humidity_2m[index]),
+    lluvia: Number.isFinite(Number(data.hourly.precipitation_probability?.[index]))
+      ? Number(data.hourly.precipitation_probability[index])
+      : null,
+  }))
+
+  return {
+    ciudad: `${name}, ${country}`,
+    publicado: String(data.current.time),
+    temperatura: Number(data.current.temperature_2m),
+    humedad: Number(data.current.relative_humidity_2m),
+    horas,
+  }
+}

@@ -14,6 +14,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
+import { RecomendacionesClima } from '@/components/dashboard/recomendaciones-clima'
+
 interface WeatherData {
   temperature: number
   humidity: number
@@ -167,6 +169,8 @@ export function DatosExternosPage() {
         <h2 className="text-2xl font-bold text-foreground">Datos Externos</h2>
         <p className="text-muted-foreground">Consulta condiciones climaticas externas y comparalas con tu modulo</p>
       </header>
+
+      <RecomendacionesClima />
 
       <section aria-labelledby="ip-section">
         <Card className="bg-card border-border">
