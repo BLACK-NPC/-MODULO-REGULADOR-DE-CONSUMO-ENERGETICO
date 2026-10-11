@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, Clock, Droplets, Fan, Minus, Moon, Plus, Power, Snowflake, Sun } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, Clock, Droplets, Fan, Minus, Moon, Plus, Power, Snowflake, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
@@ -315,13 +315,16 @@ export function AirePage({ data }: { data: AVCData }) {
             <label htmlFor="aire-perfil" className="mb-2 block text-[11px] font-bold tracking-wider text-muted-foreground">
               PERFIL DEL EQUIPO
             </label>
-            <select
-              id="aire-perfil"
-              defaultValue="midea"
-              className="h-12 w-full rounded-xl border border-border bg-secondary px-3 text-sm font-bold text-foreground"
-            >
-              <option value="midea">Midea · Coolix</option>
-            </select>
+            <div className="relative">
+              <select
+                id="aire-perfil"
+                defaultValue="midea"
+                className="h-12 w-full appearance-none rounded-xl border border-border bg-secondary pl-3 pr-12 text-sm font-bold text-foreground outline-none focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400/40"
+              >
+                <option value="midea">Midea · Coolix</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" strokeWidth={2.4} />
+            </div>
           </div>
           <Fila etiqueta="Sistema" valor={fallas > 0 ? `${fallas} falla(s)` : 'En orden'} tono={fallas > 0 ? 'aviso' : 'azul'} />
           <Fila etiqueta="Receptor IR" valor="Orden guardada en la pagina" tono="normal" />
