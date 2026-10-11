@@ -785,7 +785,13 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         <EquipoVistas
           vista={equipoVista}
           onBack={() => setEquipoVista('panel')}
-          lecturas={{ temp: data.temperatura, hum: data.humedad, pot: data.potencia }}
+          onVista={setEquipoVista}
+          lecturas={{
+            temp: data.temperatura,
+            pot: data.potencia,
+            velocidad: data.velocidad,
+            hayTemp: data.config.sensorTemperatura,
+          }}
         />
       ) : null}
 
