@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Snowflake } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
+import { ArrowUpDown, Clock, Droplets, Fan, Minus, Moon, Plus, Power, Snowflake, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
@@ -33,19 +32,19 @@ const INICIAL: EstadoAire = {
   sleep: false,
 }
 
-const MODOS: { id: Modo; icono: string; nombre: string }[] = [
-  { id: 'cool', icono: '❄', nombre: 'Frio' },
-  { id: 'heat', icono: '☼', nombre: 'Calor' },
-  { id: 'fan', icono: '✣', nombre: 'Ventilador' },
-  { id: 'dry', icono: '♢', nombre: 'Deshumidificar' },
-  { id: 'auto', icono: 'Ⓐ', nombre: 'Automatico' },
+const MODOS: { id: Modo; nombre: string; corto: string }[] = [
+  { id: 'cool', nombre: 'Frio', corto: 'Frio' },
+  { id: 'heat', nombre: 'Calor', corto: 'Calor' },
+  { id: 'fan', nombre: 'Ventilador', corto: 'Ventilador' },
+  { id: 'dry', nombre: 'Deshumidificar', corto: 'Deshumidif.' },
+  { id: 'auto', nombre: 'Automatico', corto: 'Automatico' },
 ]
 
-const FANS: { id: Ventilador; nombre: string }[] = [
-  { id: 'low', nombre: 'Baja' },
-  { id: 'medium', nombre: 'Media' },
-  { id: 'high', nombre: 'Alta' },
-  { id: 'auto', nombre: 'Automatica' },
+const FANS: { id: Ventilador; nombre: string; corto: string }[] = [
+  { id: 'low', nombre: 'Baja', corto: 'Baja' },
+  { id: 'medium', nombre: 'Media', corto: 'Media' },
+  { id: 'high', nombre: 'Alta', corto: 'Alta' },
+  { id: 'auto', nombre: 'Automatica', corto: 'Auto' },
 ]
 
 function cargar(): EstadoAire {
@@ -69,9 +68,15 @@ function diaDeHoy() {
   return ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'][new Date().getDay()]
 }
 
+function horaLocal() {
+  const ahora = new Date()
+  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+}
+
 export function AirePage({ data }: { data: AVCData }) {
   const [estado, setEstado] = useState<EstadoAire>(INICIAL)
   const [listo, setListo] = useState(false)
+  const [hora, setHora] = useState('')
 
   useEffect(() => {
     setEstado(cargar())
@@ -83,6 +88,12 @@ export function AirePage({ data }: { data: AVCData }) {
     window.localStorage.setItem(CLAVE, JSON.stringify(estado))
   }, [estado, listo])
 
+  useEffect(() => {
+    setHora(horaLocal())
+    const id = window.setInterval(() => setHora(horaLocal()), 20000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const puntos = useMemo(() => {
     const serie = data.historico?.[diaDeHoy()]?.temperatura ?? []
     return serie
@@ -93,151 +104,272 @@ export function AirePage({ data }: { data: AVCData }) {
   const hayTemp = data.config.sensorTemperatura
   const actual = hayTemp ? data.temperatura : null
   const consejo = consejoDe(actual, data.humedad, data.config.sensorHumedad, estado.objetivo)
-  const fan = FANS.find((item) => item.id === estado.ventilador)?.nombre ?? 'Media'
+  const modoNombre = MODOS.find((item) => item.id === estado.modo)?.nombre ?? 'Frio'
+  const fanNombre = FANS.find((item) => item.id === estado.ventilador)?.nombre ?? 'Media'
+  const fallas = data.diag.fallas
+  const conectado = data.wifi.conectado
+  const fraccion = ((estado.objetivo - MIN) / (MAX - MIN)) * 100
 
   function poner(partial: Partial<EstadoAire>) {
     setEstado((prev) => ({ ...prev, ...partial }))
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Snowflake className="w-6 h-6 text-sky-400" />
+          <p className="text-xs font-medium tracking-wider text-muted-foreground">ECOPULSE · SALA · UNIDAD 01</p>
+          <h2 className="mt-0.5 flex items-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
+            <Snowflake className="h-6 w-6 text-sky-400" />
             Aire acondicionado · Midea
           </h2>
-          <p className="text-sm text-muted-foreground">SALA / UNIDAD 01</p>
         </div>
-        <p className="text-sm text-muted-foreground text-right">
-          Control local
-          <span className="block text-emerald-400">{data.wifi.conectado ? 'WiFi conectado' : 'Sin enlace WiFi'}</span>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-bold text-foreground">
+            <span className={cn('h-2 w-2 rounded-full', conectado ? 'bg-sky-400' : 'bg-muted-foreground')} />
+            {conectado ? 'WiFi conectado' : 'Sin enlace WiFi'}
+          </span>
+          <span className="inline-flex items-center rounded-full border border-border bg-card px-3 py-2 text-xs font-bold text-muted-foreground">
+            {hora ? `${hora} · ` : ''}Control local
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Historial de temperatura</p>
-              <p className="text-xs text-muted-foreground">Ultimas 24 h</p>
-            </div>
-            <Curva puntos={puntos} objetivo={estado.objetivo} />
-            <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-              <span>Temp. actual ({actual === null ? '--' : `${actual} °C`})</span>
-              <span>SP ({estado.objetivo} °C)</span>
-            </div>
-            <div className="rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2">
-              <p className="text-xs font-medium text-sky-300">Consejo</p>
-              <p className="text-sm text-foreground">{consejo}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4">
+        <section className="flex flex-col items-center gap-2 rounded-3xl border border-border bg-card px-4 py-5">
+          <div className="flex flex-wrap justify-center gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold',
+                estado.encendido ? 'bg-sky-500/15 text-sky-300' : 'bg-secondary text-muted-foreground',
+              )}
+            >
+              <span className={cn('h-2 w-2 rounded-full', estado.encendido ? 'bg-sky-400' : 'bg-muted-foreground')} />
+              {estado.encendido ? 'Encendido' : 'Apagado'}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-secondary px-3.5 py-2 text-[13px] font-bold text-muted-foreground">
+              Modo {modoNombre} · Ventilador {fanNombre}
+            </span>
+          </div>
 
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 text-center space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">TEMPERATURA OBJETIVO</p>
-            <div className="relative mx-auto w-56 h-48">
-              <svg viewBox="0 0 250 210" className="w-full h-full">
-                <path d="M45 175 A90 90 0 1 1 205 175" fill="none" stroke="currentColor" className="text-border" strokeWidth="12" strokeLinecap="round" />
-                <path
-                  d="M45 175 A90 90 0 1 1 205 175"
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                  strokeDasharray={`${((estado.objetivo - MIN) / (MAX - MIN)) * 280} 360`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center pb-6">
-                <p className="text-5xl font-bold text-foreground">
-                  {estado.objetivo}
-                  <span className="text-xl font-medium text-muted-foreground"> °C</span>
-                </p>
-              </div>
-              <div className="absolute left-0 top-16 flex flex-col gap-2">
-                <button type="button" onClick={() => poner({ objetivo: Math.min(MAX, estado.objetivo + 1) })} className="h-10 w-10 rounded-md bg-secondary text-lg text-foreground">+</button>
-                <button type="button" onClick={() => poner({ objetivo: Math.max(MIN, estado.objetivo - 1) })} className="h-10 w-10 rounded-md bg-secondary text-lg text-foreground">−</button>
-              </div>
+          <div className={cn('relative aspect-square w-full max-w-[300px]', !estado.encendido && 'opacity-50')}>
+            <svg
+              viewBox="0 0 240 240"
+              className="block h-full w-full"
+              role="img"
+              aria-label={`Temperatura objetivo ${estado.objetivo} grados, rango de ${MIN} a ${MAX}`}
+            >
+              <defs>
+                <linearGradient id="aire-arco" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#0ea5e9" />
+                  <stop offset="1" stopColor="#7dd3fc" />
+                </linearGradient>
+              </defs>
+              <path d="M49.3 190.7 A100 100 0 1 1 190.7 190.7" fill="none" stroke="currentColor" className="text-border" strokeWidth="14" strokeLinecap="round" />
+              <path
+                d="M49.3 190.7 A100 100 0 1 1 190.7 190.7"
+                pathLength={100}
+                fill="none"
+                stroke="url(#aire-arco)"
+                strokeWidth="14"
+                strokeLinecap="round"
+                strokeDasharray={`${fraccion} 100`}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pb-[6%]">
+              <span className="text-[11px] font-bold tracking-wider text-muted-foreground">OBJETIVO</span>
+              <span className="text-6xl font-bold leading-none text-foreground sm:text-7xl">{estado.objetivo}°</span>
+              <span className="mt-1 text-[13px] text-muted-foreground">
+                Sensor actual <b className="text-foreground">{actual === null ? '-- °C' : `${actual} °C`}</b>
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground">Usa + / − para ajustar. Rango Midea {MIN}–{MAX} °C.</p>
-            <p className="text-sm text-muted-foreground">
-              Temperatura actual del sensor:{' '}
-              <span className="font-medium text-foreground">{actual === null ? '-- °C' : `${actual} °C`}</span>
-            </p>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-sm font-medium text-foreground">Modo</p>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="-mt-3 flex w-full flex-wrap items-center justify-center gap-3.5">
+            <div className="flex h-16 max-w-60 flex-1 basis-[170px] items-center overflow-hidden rounded-full border border-border bg-secondary">
               <button
                 type="button"
-                onClick={() => poner({ encendido: !estado.encendido })}
-                className={cn('min-h-16 rounded-md border text-xs font-medium', estado.encendido ? 'border-sky-400 bg-sky-500/15 text-sky-300' : 'border-border text-muted-foreground')}
+                aria-label="Bajar temperatura objetivo"
+                onClick={() => poner({ objetivo: Math.max(MIN, estado.objetivo - 1) })}
+                className="flex h-full flex-1 items-center justify-center text-sky-300 hover:bg-sky-500/10"
               >
-                <span className="block text-lg">⏻</span>
-                {estado.encendido ? 'Encendido' : 'Apagado'}
+                <Minus className="h-6 w-6" strokeWidth={2.6} />
               </button>
-              {MODOS.map((modo) => (
-                <button
-                  key={modo.id}
-                  type="button"
-                  disabled={!estado.encendido}
-                  onClick={() => poner({ modo: modo.id })}
-                  className={cn(
-                    'min-h-16 rounded-md border text-xs font-medium disabled:opacity-40',
-                    estado.modo === modo.id && estado.encendido ? 'border-sky-400 bg-sky-500/15 text-sky-300' : 'border-border text-muted-foreground',
-                  )}
-                >
-                  <span className="block text-lg">{modo.icono}</span>
-                  {modo.nombre}
-                </button>
-              ))}
+              <span className="h-7 w-px bg-border" />
+              <button
+                type="button"
+                aria-label="Subir temperatura objetivo"
+                onClick={() => poner({ objetivo: Math.min(MAX, estado.objetivo + 1) })}
+                className="flex h-full flex-1 items-center justify-center text-sky-300 hover:bg-sky-500/10"
+              >
+                <Plus className="h-6 w-6" strokeWidth={2.6} />
+              </button>
             </div>
-            <p className="text-sm font-medium text-foreground">Velocidad del ventilador</p>
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <span className="text-sm font-medium text-foreground">{fan}</span>
-              <div className="flex gap-1">
-                {FANS.map((item) => (
+            <button
+              type="button"
+              onClick={() => poner({ encendido: !estado.encendido })}
+              className="flex h-16 max-w-52 flex-1 basis-[150px] items-center justify-center gap-2.5 rounded-full bg-gradient-to-br from-sky-500 to-sky-300 text-[15px] font-bold text-slate-950 shadow-lg shadow-sky-500/30"
+            >
+              <Power className="h-5 w-5" strokeWidth={2.6} />
+              {estado.encendido ? 'Apagar' : 'Encender'}
+            </button>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3.5 rounded-3xl border border-border bg-card p-4">
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold tracking-wider text-muted-foreground">MODO</p>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(88px,1fr))] gap-2">
+              {MODOS.map((modo) => {
+                const activo = estado.modo === modo.id && estado.encendido
+                return (
+                  <button
+                    key={modo.id}
+                    type="button"
+                    aria-pressed={activo}
+                    disabled={!estado.encendido}
+                    onClick={() => poner({ modo: modo.id })}
+                    className={cn(
+                      'flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl border text-xs font-bold disabled:opacity-40',
+                      activo ? 'border-sky-400 bg-sky-500/15 text-sky-300' : 'border-border bg-secondary text-muted-foreground',
+                    )}
+                  >
+                    <IconoModo id={modo.id} />
+                    {modo.corto}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold tracking-wider text-muted-foreground">VELOCIDAD DEL VENTILADOR</p>
+            <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-background p-1">
+              {FANS.map((item) => {
+                const activo = estado.ventilador === item.id
+                return (
                   <button
                     key={item.id}
                     type="button"
+                    aria-pressed={activo}
                     disabled={!estado.encendido}
-                    aria-label={item.nombre}
                     onClick={() => poner({ ventilador: item.id })}
-                    className={cn('h-3 w-5 rounded-sm disabled:opacity-40', estado.ventilador === item.id ? 'bg-sky-400' : 'bg-border')}
-                  />
-                ))}
-              </div>
+                    className={cn(
+                      'h-11 rounded-xl text-[13px] font-bold disabled:opacity-40',
+                      activo ? 'bg-sky-400 text-slate-950' : 'bg-transparent text-muted-foreground',
+                    )}
+                  >
+                    {item.corto}
+                  </button>
+                )
+              })}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Toggle nombre="Swing" icono="↕" activo={estado.swing} onClick={() => poner({ swing: !estado.swing })} />
-              <Toggle nombre="Temporizador" icono="◷" activo={estado.temporizador} onClick={() => poner({ temporizador: !estado.temporizador })} />
-              <Toggle nombre="Sleep" icono="☾" activo={estado.sleep} onClick={() => poner({ sleep: !estado.sleep })} />
+          </div>
+
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold tracking-wider text-muted-foreground">FUNCIONES</p>
+            <div className="flex flex-wrap gap-2">
+              <Funcion nombre="Swing" activo={estado.swing} onClick={() => poner({ swing: !estado.swing })}>
+                <ArrowUpDown className="h-4 w-4" />
+              </Funcion>
+              <Funcion nombre="Temporizador" activo={estado.temporizador} onClick={() => poner({ temporizador: !estado.temporizador })}>
+                <Clock className="h-4 w-4" />
+              </Funcion>
+              <Funcion nombre="Sleep" activo={estado.sleep} onClick={() => poner({ sleep: !estado.sleep })}>
+                <Moon className="h-4 w-4" />
+              </Funcion>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
-      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 flex flex-wrap items-center gap-4">
-        <p className="text-sm font-medium text-emerald-300">
-          {data.diag.fallas > 0 ? `${data.diag.fallas} falla(s) en el equipo` : 'Sistema en orden'}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Receptor IR
-          <span className="block text-sm text-foreground">Orden guardada en la pagina</span>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Control nativo
-          <span className="block text-sm text-foreground">Coolix · Midea</span>
-        </p>
-        <p className="text-sm text-foreground ml-auto">Midea</p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4">
+        <section className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-lg font-semibold text-foreground">Historial de temperatura</p>
+            <span className="text-xs text-muted-foreground">Hoy</span>
+          </div>
+          <Curva puntos={puntos} objetivo={estado.objetivo} />
+          <div className="flex justify-between text-[11px] text-muted-foreground">
+            <span>00:00</span>
+            <span>23:00</span>
+          </div>
+          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block h-[3px] w-4 rounded-sm bg-sky-400" />
+              Actual {actual === null ? '--' : `${actual} °C`}
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block h-0 w-4 border-t-2 border-dashed border-muted-foreground" />
+              Objetivo {estado.objetivo} °C
+            </span>
+          </div>
+          <div className="rounded-2xl bg-sky-500/10 p-3 text-[13px] leading-snug text-foreground">
+            <b className="text-sky-300">Consejo.</b> {consejo}
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
+          <p className="text-lg font-semibold text-foreground">Equipo y conexion</p>
+          <div>
+            <label htmlFor="aire-perfil" className="mb-2 block text-[11px] font-bold tracking-wider text-muted-foreground">
+              PERFIL DEL EQUIPO
+            </label>
+            <select
+              id="aire-perfil"
+              defaultValue="midea"
+              className="h-12 w-full rounded-xl border border-border bg-secondary px-3 text-sm font-bold text-foreground"
+            >
+              <option value="midea">Midea · Coolix</option>
+            </select>
+          </div>
+          <Fila etiqueta="Sistema" valor={fallas > 0 ? `${fallas} falla(s)` : 'En orden'} tono={fallas > 0 ? 'aviso' : 'azul'} />
+          <Fila etiqueta="Receptor IR" valor="Orden guardada en la pagina" tono="normal" />
+          <Fila etiqueta="Control nativo" valor="Coolix · Midea" tono="azul" />
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            El perfil Coolix no cubre todos los modelos de Midea. La pagina guarda la orden; el LED infrarrojo la transmite cuando la ESP32 tenga este protocolo.
+          </p>
+        </section>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Midea es la marca de partida. El perfil Coolix no cubre todos los modelos de esa marca. La pagina guarda la orden; el LED infrarrojo la transmite cuando la ESP32 tenga este protocolo.
-      </p>
+    </div>
+  )
+}
+
+function IconoModo({ id }: { id: Modo }) {
+  if (id === 'cool') return <Snowflake className="h-6 w-6" />
+  if (id === 'heat') return <Sun className="h-6 w-6" />
+  if (id === 'fan') return <Fan className="h-6 w-6" />
+  if (id === 'dry') return <Droplets className="h-6 w-6" />
+  return (
+    <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 16l4-9 4 9M9.5 13h5" />
+    </svg>
+  )
+}
+
+function Funcion({ nombre, activo, onClick, children }: { nombre: string; activo: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={activo}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-11 items-center gap-2 rounded-full border px-4 text-[13px] font-bold',
+        activo ? 'border-sky-400 bg-sky-500/15 text-sky-300' : 'border-border bg-secondary text-muted-foreground',
+      )}
+    >
+      {children}
+      {nombre}
+    </button>
+  )
+}
+
+function Fila({ etiqueta, valor, tono }: { etiqueta: string; valor: string; tono: 'azul' | 'normal' | 'aviso' }) {
+  return (
+    <div className="flex justify-between gap-3 border-t border-border py-3 text-sm">
+      <span className="text-muted-foreground">{etiqueta}</span>
+      <b className={cn('text-right', tono === 'azul' && 'text-sky-300', tono === 'aviso' && 'text-amber-400', tono === 'normal' && 'text-foreground')}>{valor}</b>
     </div>
   )
 }
@@ -253,7 +385,7 @@ function consejoDe(temp: number | null, humedad: number, hayHumedad: boolean, ob
 function Curva({ puntos, objetivo }: { puntos: { hora: number; valor: number }[]; objetivo: number }) {
   if (puntos.length < 2) {
     return (
-      <div className="h-36 rounded-md border border-border flex items-center justify-center px-4 text-center">
+      <div className="flex aspect-[2/1] w-full items-center justify-center rounded-xl border border-border px-4 text-center">
         <p className="text-sm text-muted-foreground">Sin muestras de hoy. No se dibuja una curva.</p>
       </div>
     )
@@ -266,22 +398,13 @@ function Curva({ puntos, objetivo }: { puntos: { hora: number; valor: number }[]
   const d = puntos.map((punto, index) => `${index === 0 ? 'M' : 'L'}${x(punto.hora).toFixed(1)} ${y(punto.valor).toFixed(1)}`).join(' ')
   const sp = y(objetivo)
   return (
-    <svg viewBox="0 0 250 125" className="h-36 w-full rounded-md border border-border">
-      <path d={d} fill="none" stroke="#38bdf8" strokeWidth="2.5" />
-      <path d={`M18 ${sp} H242`} stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="5 4" />
+    <svg viewBox="0 0 250 125" className="block h-auto w-full" role="img" aria-label={`Temperatura de hoy frente al objetivo de ${objetivo} grados`}>
+      <g stroke="currentColor" className="text-border">
+        <path d="M18 10H242M18 35H242M18 60H242M18 85H242M18 110H242" />
+        <path d="M18 10V110M74 10V110M130 10V110M186 10V110M242 10V110" />
+      </g>
+      <path d={d} fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={`M18 ${sp.toFixed(1)}H242`} stroke="currentColor" className="text-muted-foreground" strokeWidth="2" strokeDasharray="5 4" />
     </svg>
-  )
-}
-
-function Toggle({ nombre, icono, activo, onClick }: { nombre: string; icono: string; activo: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn('min-h-14 rounded-md border text-xs font-medium', activo ? 'border-sky-400 bg-sky-500/15 text-sky-300' : 'border-border text-muted-foreground')}
-    >
-      <span className="block text-lg">{icono}</span>
-      {nombre}
-    </button>
   )
 }
