@@ -42,6 +42,8 @@ import type { AVCData } from '@/hooks/use-avc-data'
 import { PerfilesHorarios } from '@/components/dashboard/perfiles-horarios'
 import { ServicioVistas } from '@/components/dashboard/servicio-vistas'
 import { EquipoVistas } from '@/components/dashboard/equipo-vistas'
+import { CentroVoz } from '@/components/dashboard/centro-voz'
+import { AlertasVistas } from '@/components/dashboard/alertas-vistas'
 import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
 import { activeEquipo, loadEquipo } from '@/lib/page-equipo'
 import { buildVerificacionFalla } from '@/lib/verificacion-falla'
@@ -52,6 +54,7 @@ interface ConfiguracionesPageProps {
   onUpdate: (path: string, value: unknown) => Promise<HmiCommandResult>
   isDemo?: boolean
   lastHeartbeatAt?: number | null
+  onNavigate?: (page: 'home' | 'aire') => void
 }
 
 const SP_PIN = '2011'
@@ -172,7 +175,7 @@ function MedicionSwitch({
   )
 }
 
-export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartbeatAt = null }: ConfiguracionesPageProps) {
+export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartbeatAt = null, onNavigate }: ConfiguracionesPageProps) {
   const [fabVisible, setFabVisible] = useState(true)
   const [medicionAbierta, setMedicionAbierta] = useState(false)
   const [autoAbierta, setAutoAbierta] = useState(false)
@@ -182,6 +185,8 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   const [sistemaAbierta, setSistemaAbierta] = useState(false)
   const [conectAbierta, setConectAbierta] = useState(false)
   const [conectVista, setConectVista] = useState<'wifi' | 'firebase'>('wifi')
+  const [vozAbierta, setVozAbierta] = useState(false)
+  const [alertasAbierta, setAlertasAbierta] = useState(false)
   const [rapidez, setRapidez] = useState(1)
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
@@ -212,6 +217,8 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
       setEquipoAbierta(false)
       setSistemaAbierta(pane === 'sistema')
       setConectAbierta(pane === 'conectividad')
+      setVozAbierta(false)
+      setAlertasAbierta(false)
     }
     window.addEventListener('ecopulse-open-pane', openPane)
     return () => window.removeEventListener('ecopulse-open-pane', openPane)
@@ -458,7 +465,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         </CardContent>
       </Card>
       </div>
-      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta ? (
+      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta ? (
         <button
           type="button"
           onClick={() => setMedicionAbierta(true)}
@@ -934,7 +941,28 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         </div>
       ) : null}
 
-      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta ? (
+      {vozAbierta ? (
+        <CentroVoz
+          data={data}
+          onUpdate={onUpdate}
+          onBack={() => setVozAbierta(false)}
+          onNavigate={onNavigate}
+          isDemo={isDemo}
+          lastHeartbeatAt={lastHeartbeatAt}
+        />
+      ) : null}
+
+      {alertasAbierta ? (
+        <AlertasVistas
+          data={data}
+          isDemo={isDemo}
+          lastHeartbeatAt={lastHeartbeatAt}
+          onBack={() => setAlertasAbierta(false)}
+          onGo={(pane) => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane }))}
+        />
+      ) : null}
+
+      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta ? (
       <>
         <button
           type="button"
@@ -1005,6 +1033,30 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">CONECTIVIDAD</p>
             <p className="text-xs text-muted-foreground">Wifi, Firebase</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setVozAbierta(true)}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <Mic className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">CENTRO DE VOZ</p>
+            <p className="text-xs text-muted-foreground">Comandos propios, ajustes e historial</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setAlertasAbierta(true)}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">ALERTAS</p>
+            <p className="text-xs text-muted-foreground">Estado de senales, fallas e historial</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
