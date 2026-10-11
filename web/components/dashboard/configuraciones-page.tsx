@@ -204,6 +204,19 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   useEffect(() => setBeepDuty(data.sistema.beepDuty), [data.sistema.beepDuty])
   useEffect(() => setRetencion(data.automatizacion.retencionMs), [data.automatizacion.retencionMs])
   useEffect(() => {
+    function openPane(event: Event) {
+      const pane = (event as CustomEvent<string>).detail
+      setMedicionAbierta(pane === 'medicion')
+      setAutoAbierta(pane === 'automatizacion')
+      setServicioAbierta(false)
+      setEquipoAbierta(false)
+      setSistemaAbierta(pane === 'sistema')
+      setConectAbierta(pane === 'conectividad')
+    }
+    window.addEventListener('ecopulse-open-pane', openPane)
+    return () => window.removeEventListener('ecopulse-open-pane', openPane)
+  }, [])
+  useEffect(() => {
     const stored = window.localStorage.getItem('ecopulse-rapidez')
     if (stored === '0' || stored === '1' || stored === '2') {
       setRapidez(Number(stored))

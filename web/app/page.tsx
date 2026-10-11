@@ -195,7 +195,17 @@ export default function Dashboard() {
       case 'configuraciones':
         return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
       case 'alertas':
-        return <AlertasPage data={data} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
+        return (
+          <AlertasPage
+            data={data}
+            isDemo={isDemo}
+            lastHeartbeatAt={lastHeartbeatAt}
+            onGo={(pane) => {
+              setCurrentPage('configuraciones')
+              window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane }))
+            }}
+          />
+        )
       case 'datos-externos':
         return <DatosExternosPage />
       default:

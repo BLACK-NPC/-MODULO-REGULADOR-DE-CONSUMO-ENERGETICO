@@ -8,6 +8,15 @@ import {
   type HmiCommandResult,
 } from '@/lib/hmi-command'
 
+export interface FaultRecord {
+  id: number
+  signal: number
+  flags: number
+  start: number
+  end: number
+  peak: number
+}
+
 export interface AVCHistoryDay {
   dayKey?: number
   potencia: number[]
@@ -64,6 +73,7 @@ export interface AVCData {
   }
   diag: {
     fallas: number
+    historial: FaultRecord[]
   }
   historico: {
     [dia: string]: AVCHistoryDay
@@ -88,6 +98,32 @@ function normalizeHistoryDay(value: unknown): AVCHistoryDay {
     temperatura: Array.isArray(source.temperatura) ? source.temperatura.map((item) => toNumber(item)) : [],
     humedad: Array.isArray(source.humedad) ? source.humedad.map((item) => toNumber(item)) : [],
   }
+}
+
+function normalizeHistorial(value: unknown): FaultRecord[] {
+  const list = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object'
+      ? Object.values(value as Record<string, unknown>)
+      : []
+  return list.flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return []
+    }
+    const row = item as Record<string, unknown>
+    const signal = toNumber(row.signal, -1)
+    if (signal < 0 || signal > 6) {
+      return []
+    }
+    return [{
+      id: toNumber(row.id),
+      signal,
+      flags: toNumber(row.flags),
+      start: toNumber(row.start),
+      end: toNumber(row.end),
+      peak: toNumber(row.peak),
+    }]
+  })
 }
 
 function normalizeHistorico(value: unknown): AVCData['historico'] {
@@ -168,6 +204,7 @@ function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | nu
     },
     diag: {
       fallas: toNumber(diag.fallas, 0),
+      historial: normalizeHistorial(diag.historial),
     },
     historico: normalizeHistorico(source.historico),
   }
@@ -221,7 +258,7 @@ const demoData: AVCData = {
   sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
   conectividad: { firebaseModo: 3, wifiRadio: true },
   automatizacion: { retencionMs: 2000, alcance: 0 },
-  diag: { fallas: 0 },
+  diag: { fallas: 0, historial: [] },
   historico: {
     Lun: { potencia: [10, 25, 37, 50, 45, 30], temperatura: [20, 22, 25, 28, 26, 24], humedad: [30, 35, 40, 38, 35, 32] },
     Mar: { potencia: [15, 30, 42, 48, 40, 25], temperatura: [21, 24, 27, 29, 27, 23], humedad: [32, 38, 42, 40, 36, 33] },
@@ -264,7 +301,7 @@ const defaultData: AVCData = {
   sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
   conectividad: { firebaseModo: 3, wifiRadio: true },
   automatizacion: { retencionMs: 2000, alcance: 0 },
-  diag: { fallas: 0 },
+  diag: { fallas: 0, historial: [] },
   historico: {},
 }
 
@@ -363,7 +400,7 @@ export function useAVCData() {
               raw.automatizacion,
               ['retencionMs', 'alcance'],
             ),
-            diag: keepAbsentKeys(prev.diag, normalizedData.diag, raw.diag, ['fallas']),
+            diag: keepAbsentKeys(prev.diag, normalizedData.diag, raw.diag, ['fallas', 'historial']),
           }))
 
           if (lastHeartbeatValueRef.current !== normalizedData.heartbeat || lastHeartbeatAtRef.current === null) {
