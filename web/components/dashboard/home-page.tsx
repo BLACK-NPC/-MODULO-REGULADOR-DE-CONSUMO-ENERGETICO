@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Thermometer, Droplets, Zap, Play, Square, Mic } from 'lucide-react'
+import { Thermometer, Droplets, Zap, Play, Square, Mic, User } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,8 +39,11 @@ export function HomePage({
     return () => window.clearInterval(intervalId)
   }, [])
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
-  const circumference = 2 * Math.PI * 45
-  const strokeDashoffset = circumference - (velocidadPorcentaje / 100) * circumference
+  const arc = 2 * Math.PI * 16
+  const arcOffset = arc - (velocidadPorcentaje / 100) * arc
+  const motorMarcha = lecturaViva && data.estado === 'running'
+  const estadoTexto = !lecturaViva ? 'Sin lectura' : data.diag.fallas > 0 ? `${data.diag.fallas} falla(s)` : 'Listo'
+  const potenciaTexto = lecturaViva && data.config.sensorPotencia ? `${data.potencia} W` : '-- W'
 
   useEffect(() => {
     if (!onVoiceSectionVisibleChange) return
@@ -63,18 +66,8 @@ export function HomePage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Panel Principal</h2>
-          <p className="text-muted-foreground">Control y monitoreo en tiempo real</p>
-        </div>
-        <div className={cn(
-          'px-4 py-2 rounded-full text-sm font-medium',
-          !lecturaViva
-            ? 'bg-secondary text-muted-foreground border border-border'
-            : data.estado === 'running'
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-        )}>
-          {!lecturaViva ? 'Sin lectura' : data.estado === 'running' ? 'En Operacion' : 'Detenido'}
+          <h2 className="text-2xl font-bold text-foreground">HOME</h2>
+          <p className="text-muted-foreground">Lecturas, motor y marcha</p>
         </div>
       </div>
 
@@ -93,182 +86,139 @@ export function HomePage({
         </Card>
       ) : null}
 
-      {/* Sensor Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Temperatura */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <Thermometer className="w-5 h-5 text-red-400" />
-              </div>
-              <span className="text-muted-foreground font-medium">Temperatura</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold text-foreground">{data.temperatura}</span>
-              <span className="text-2xl text-muted-foreground">°C</span>
-            </div>
-            <div className="mt-4 flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">SP:</span>
+          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
+            <Thermometer className="w-5 h-5 text-foreground" />
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">TEMPERATURA</p>
+            <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.temperatura} C` : '-- C'}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">SP</span>
               <Input
                 type="number"
                 value={data.setpoint}
                 onChange={(e) => onUpdate('setpoint', Number(e.target.value))}
-                className="w-20 h-8 text-center bg-secondary border-border"
+                className="w-16 h-7 text-center bg-secondary border-border"
               />
             </div>
           </CardContent>
         </Card>
-
-        {/* Humedad */}
         <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Droplets className="w-5 h-5 text-blue-400" />
-              </div>
-              <span className="text-muted-foreground font-medium">Humedad</span>
+          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
+            <Droplets className="w-5 h-5 text-foreground" />
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">HUMEDAD</p>
+            <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.humedad} %` : '-- %'}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
+            <Zap className="w-5 h-5 text-foreground" />
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">POTENCIA</p>
+            <p className="text-2xl font-semibold text-foreground">{potenciaTexto}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
+            <User className="w-5 h-5 text-foreground" />
+            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">PRESENCIA</p>
+            <p className="text-2xl font-semibold text-foreground inline-flex items-center gap-2">
+              <span className={cn('w-2.5 h-2.5 rounded-full', lecturaViva && data.movimiento ? 'bg-green-500' : 'bg-muted-foreground')} />
+              {lecturaViva ? (data.movimiento ? 'Si' : 'No') : '--'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Card className="bg-card border-border">
+          <CardContent className="p-4 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">MOTOR</p>
+              <p className="text-base font-medium text-foreground inline-flex items-center gap-2 mt-1">
+                <span className={cn('w-2.5 h-2.5 rounded-full', motorMarcha ? 'bg-green-500' : 'bg-muted-foreground')} />
+                {lecturaViva ? (data.estado === 'running' ? 'En marcha' : 'Parado') : '--'}
+              </p>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold text-foreground">{data.humedad}</span>
-              <span className="text-2xl text-muted-foreground">%</span>
-            </div>
-            <div className="mt-4 h-2 bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-500 transition-all duration-500"
-                style={{ width: `${data.humedad}%` }}
-              />
+            <div className="border-l border-border pl-3">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">ESTADO</p>
+              <p className={cn('text-base font-medium mt-1', data.diag.fallas > 0 && lecturaViva ? 'text-red-400' : 'text-foreground')}>
+                {estadoTexto}
+              </p>
             </div>
           </CardContent>
         </Card>
-
-        {/* Velocidad Gauge */}
         <Card className="bg-card border-border">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-cyan-400" />
-              </div>
-              <span className="text-muted-foreground font-medium">Velocidad</span>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="relative w-12 h-12 shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="4" className="text-secondary" />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeDasharray={arc}
+                  strokeDashoffset={arcOffset}
+                  className="text-blue-500"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
+                {velocidadPorcentaje}%
+              </span>
             </div>
-            <div className="flex items-center justify-center">
-              <div className="relative w-32 h-32">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    className="text-secondary"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    className="text-cyan-500 transition-all duration-500"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-xs text-muted-foreground">V:</span>
-                  <span className="text-2xl font-bold text-foreground">{data.velocidad}</span>
-                </div>
-              </div>
+            <div>
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">VELOCIDAD ACTUAL</p>
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">DEL MOTOR</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Controls */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Controles de Operacion</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Start/Stop Buttons */}
-            <div className="flex gap-4">
-              <Button
-                onClick={() => onUpdate('estado', 'running')}
-                disabled={data.estado === 'running'}
-                className="flex-1 h-14 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold disabled:opacity-50"
-              >
-                <Play className="w-5 h-5 mr-2" />
-                START
-              </Button>
-              <Button
-                onClick={() => onUpdate('estado', 'stopped')}
-                disabled={data.estado === 'stopped'}
-                className="flex-1 h-14 bg-gray-600 hover:bg-gray-700 text-white font-semibold disabled:opacity-50"
-              >
-                <Square className="w-5 h-5 mr-2" />
-                STOP
-              </Button>
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.4fr] gap-3">
+        <Button
+          onClick={() => onUpdate('estado', 'running')}
+          disabled={data.estado === 'running'}
+          className="h-12 bg-foreground text-background hover:bg-foreground/90 font-semibold disabled:opacity-50"
+        >
+          <Play className="w-4 h-4 mr-2" />
+          START
+        </Button>
+        <Button
+          onClick={() => onUpdate('estado', 'stopped')}
+          disabled={data.estado === 'stopped'}
+          variant="outline"
+          className="h-12 bg-secondary border-border text-foreground font-semibold disabled:opacity-50"
+        >
+          <Square className="w-4 h-4 mr-2" />
+          STOP
+        </Button>
+        <Select value={data.modo} onValueChange={(value) => onUpdate('modo', value)}>
+          <SelectTrigger className="h-12 bg-card border-blue-500/60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="AUTOMATICO">AUTOMATICO</SelectItem>
+            <SelectItem value="MANUAL">MANUAL</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            {/* Mode Select */}
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Modo de Operacion</label>
-              <Select
-                value={data.modo}
-                onValueChange={(value) => onUpdate('modo', value)}
-              >
-                <SelectTrigger className="h-14 bg-secondary border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="AUTOMATICO">AUTOMATICO</SelectItem>
-                  <SelectItem value="MANUAL">MANUAL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Manual Speed Control */}
-          {data.modo === 'MANUAL' && (
-            <div className="mt-4 space-y-2">
-              <label className="text-sm text-muted-foreground">Velocidad Manual (0-100)</label>
-              <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={data.velocidad}
-                  onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
-                  className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                />
-                <span className="text-foreground font-medium w-12 text-right">{data.velocidad}%</span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Potencia */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-orange-400" />
-              </div>
-              <div>
-                <span className="text-muted-foreground font-medium">Potencia Actual</span>
-                <p className="text-3xl font-bold text-foreground">{data.potencia} W</p>
-              </div>
-            </div>
-            <div className={cn(
-              'w-4 h-4 rounded-full',
-              data.movimiento ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
-            )} title={data.movimiento ? 'Movimiento detectado' : 'Sin movimiento'} />
-          </div>
-        </CardContent>
-      </Card>
+      {data.modo === 'MANUAL' ? (
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-muted-foreground shrink-0">Velocidad manual</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={data.velocidad}
+            onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
+            className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
+          <span className="text-foreground font-medium w-12 text-right">{data.velocidad}%</span>
+        </div>
+      ) : null}
 
       <section
         id="voice-assistant-section"
