@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Mic, Command, ChevronRight, CheckCircle2, Loader2, Waves, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   FAB_HIDDEN_CHANGE_EVENT,
+  FAB_STORAGE_KEY_DOCKED,
   FAB_STORAGE_KEY_POS,
   isFabHidden,
 } from '@/lib/fab-storage'
@@ -33,6 +35,8 @@ export interface VoiceFloatingAssistantProps {
 }
 
 const DRAG_THRESHOLD = 8
+const UNDOCK_PAD = 18
+const DOCK_PAGES: DashboardPage[] = ['home', 'aire']
 const FAB_SIZE = 56
 const MENU_WIDTH = 280
 const GAP = 10
@@ -100,6 +104,11 @@ export function VoiceFloatingAssistant({
   lang = 'es-CO',
 }: VoiceFloatingAssistantProps) {
   const [hidden, setHidden] = useState(false)
+  const [docked, setDocked] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem(FAB_STORAGE_KEY_DOCKED) !== 'false'
+  })
+  const [dockEl, setDockEl] = useState<HTMLElement | null>(null)
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0 }
     return loadFabPosition() ?? getDefaultFabPosition()
@@ -114,6 +123,9 @@ export function VoiceFloatingAssistant({
   const fabButtonRef = useRef<HTMLButtonElement>(null)
   const lastFabActivateMs = useRef(0)
   const activePointerId = useRef<number | null>(null)
+  const dockElRef = useRef<HTMLElement | null>(null)
+  const dockedRef = useRef(true)
+  const menuOpenRef = useRef(commandsMenuOpen)
 
   const handleSessionEnd = useCallback(() => {
     onCommandsMenuOpenChange(false)
@@ -142,6 +154,53 @@ export function VoiceFloatingAssistant({
       window.removeEventListener('storage', syncHidden)
       window.removeEventListener(FAB_HIDDEN_CHANGE_EVENT, syncHidden)
     }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(FAB_STORAGE_KEY_DOCKED, docked ? 'true' : 'false')
+    dockedRef.current = docked
+  }, [docked])
+
+  useEffect(() => {
+    menuOpenRef.current = commandsMenuOpen
+  }, [commandsMenuOpen])
+
+  useEffect(() => {
+    if (!DOCK_PAGES.includes(currentPage)) {
+      dockElRef.current = null
+      setDockEl(null)
+      return
+    }
+    const find = () => {
+      const el = document.getElementById('voice-mic-dock')
+      dockElRef.current = el
+      setDockEl(el)
+    }
+    find()
+    const frame = window.requestAnimationFrame(find)
+    return () => window.cancelAnimationFrame(frame)
+  }, [currentPage])
+
+  const onDockPage = DOCK_PAGES.includes(currentPage)
+  const dockedHere = onDockPage && docked && dockEl !== null
+  const onDockPageRef = useRef(onDockPage)
+  onDockPageRef.current = onDockPage
+  dockedRef.current = docked
+
+  const pointerOverDock = useCallback((x: number, y: number) => {
+    const el = dockElRef.current
+    if (!el || !onDockPageRef.current) return false
+    const rect = el.getBoundingClientRect()
+    return x >= rect.left - UNDOCK_PAD && x <= rect.right + UNDOCK_PAD && y >= rect.top - UNDOCK_PAD && y <= rect.bottom + UNDOCK_PAD
+  }, [])
+
+  const pointerLeftDock = useCallback((x: number, y: number) => {
+    const el = dockElRef.current
+    if (!el) return true
+    const rect = el.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    return Math.hypot(x - cx, y - cy) > Math.max(rect.width, rect.height) / 2 + UNDOCK_PAD
   }, [])
 
   useEffect(() => {
@@ -184,7 +243,7 @@ export function VoiceFloatingAssistant({
     startListening()
   }, [startListening])
 
-  const shouldHide = hidden || (voiceSectionVisible && currentPage === 'home')
+  const shouldHide = hidden || (voiceSectionVisible && currentPage === 'home' && !dockedHere)
 
   const groupX = fabPos.x - menuOffset(commandsMenuOpen)
   const groupY = fabPos.y
@@ -270,11 +329,71 @@ export function VoiceFloatingAssistant({
       const tappedFab = fabButtonRef.current?.contains(e.target as Node)
       if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
         activateFab()
+      } else if (totalMove.current >= DRAG_THRESHOLD && pointerOverDock(e.clientX, e.clientY)) {
+        setDocked(true)
       }
 
       totalMove.current = 0
     },
-    [activateFab]
+    [activateFab, pointerOverDock]
+  )
+
+  const onDockPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return
+      e.preventDefault()
+      dragging.current = true
+      totalMove.current = 0
+      activePointerId.current = e.pointerId
+      startPointer.current = { x: e.clientX, y: e.clientY }
+      const pointerId = e.pointerId
+
+      const move = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId || !dragging.current) return
+        const dx = ev.clientX - startPointer.current.x
+        const dy = ev.clientY - startPointer.current.y
+        totalMove.current = Math.hypot(dx, dy)
+        if (dockedRef.current) {
+          if (!pointerLeftDock(ev.clientX, ev.clientY)) return
+          const next = clampFabPosition(
+            { x: ev.clientX - FAB_SIZE / 2, y: ev.clientY - FAB_SIZE / 2 },
+            menuOpenRef.current
+          )
+          startPointer.current = { x: ev.clientX, y: ev.clientY }
+          startFabPos.current = next
+          dockedRef.current = false
+          setDocked(false)
+          setFabPos(next)
+          return
+        }
+        setFabPos(
+          clampFabPosition(
+            { x: startFabPos.current.x + dx, y: startFabPos.current.y + dy },
+            menuOpenRef.current
+          )
+        )
+      }
+
+      const up = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+        window.removeEventListener('pointercancel', up)
+        dragging.current = false
+        activePointerId.current = null
+        if (totalMove.current < DRAG_THRESHOLD) {
+          activateFab()
+        } else if (!dockedRef.current && pointerOverDock(ev.clientX, ev.clientY)) {
+          setDocked(true)
+        }
+        totalMove.current = 0
+      }
+
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+      window.addEventListener('pointercancel', up)
+    },
+    [activateFab, pointerLeftDock, pointerOverDock]
   )
 
   const onGroupPointerUp = useCallback(
@@ -306,6 +425,45 @@ export function VoiceFloatingAssistant({
     (isListening || isProcessing || !!transcript || !!responseText || !!errorMsg)
 
   if (shouldHide) return null
+
+  const dockRect = dockedHere && dockEl ? dockEl.getBoundingClientRect() : null
+  const micButton = (
+    <button
+      ref={fabButtonRef}
+      type="button"
+      onClick={dockedHere ? undefined : handleFabClick}
+      onPointerDown={dockedHere ? onDockPointerDown : undefined}
+      aria-label={
+        isListening || isProcessing
+          ? 'Detener control por voz'
+          : 'Activar control por voz'
+      }
+      style={{
+        width: dockedHere ? '100%' : FAB_SIZE,
+        height: dockedHere ? '100%' : FAB_SIZE,
+        flexShrink: 0,
+        touchAction: dockedHere ? 'none' : 'manipulation',
+      }}
+      className={cn(
+        'relative flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing outline-none p-0',
+        'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 shadow-lg shadow-emerald-900/40',
+        'transition-transform duration-200',
+        (isListening || isProcessing) &&
+          'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950'
+      )}
+    >
+      <Mic size={22} className="text-white relative z-10" />
+      {isListening && (
+        <>
+          <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" aria-hidden />
+          <span
+            className="absolute inset-[-4px] rounded-full border-2 border-emerald-400/40 animate-pulse"
+            aria-hidden
+          />
+        </>
+      )}
+    </button>
+  )
 
   return (
     <>
@@ -351,19 +509,20 @@ export function VoiceFloatingAssistant({
         </div>
       )}
 
+      {(!dockedHere || commandsMenuOpen) && (
       <div
         ref={groupRef}
         className="fixed z-50 flex items-end gap-2.5 cursor-grab active:cursor-grabbing"
         style={{
-          left: groupX,
-          top: groupY,
+          left: dockRect ? dockRect.left - menuOffset(commandsMenuOpen) : groupX,
+          top: dockRect ? dockRect.top : groupY,
           touchAction: 'none',
           userSelect: 'none',
         }}
-        onPointerDown={onGroupPointerDown}
-        onPointerMove={onGroupPointerMove}
-        onPointerUp={onGroupPointerUp}
-        onPointerCancel={onGroupPointerCancel}
+        onPointerDown={dockedHere ? undefined : onGroupPointerDown}
+        onPointerMove={dockedHere ? undefined : onGroupPointerMove}
+        onPointerUp={dockedHere ? undefined : onGroupPointerUp}
+        onPointerCancel={dockedHere ? undefined : onGroupPointerCancel}
       >
         {commandsMenuOpen && (
           <div
@@ -414,41 +573,10 @@ export function VoiceFloatingAssistant({
           </div>
         )}
 
-        <button
-          ref={fabButtonRef}
-          type="button"
-          onClick={handleFabClick}
-          aria-label={
-            isListening || isProcessing
-              ? 'Detener control por voz'
-              : 'Activar control por voz'
-          }
-          style={{
-            width: FAB_SIZE,
-            height: FAB_SIZE,
-            flexShrink: 0,
-            touchAction: 'manipulation',
-          }}
-          className={cn(
-            'relative flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing outline-none p-0',
-            'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 shadow-lg shadow-emerald-900/40',
-            'transition-transform duration-200',
-            (isListening || isProcessing) &&
-              'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950'
-          )}
-        >
-          <Mic size={22} className="text-white relative z-10" />
-          {isListening && (
-            <>
-              <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" aria-hidden />
-              <span
-                className="absolute inset-[-4px] rounded-full border-2 border-emerald-400/40 animate-pulse"
-                aria-hidden
-              />
-            </>
-          )}
-        </button>
+        {!dockedHere && micButton}
       </div>
+      )}
+      {dockedHere && dockEl ? createPortal(micButton, dockEl) : null}
     </>
   )
 }

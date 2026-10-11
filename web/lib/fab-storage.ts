@@ -1,5 +1,6 @@
 export const FAB_STORAGE_KEY_POS = 'avc-voice-fab-position'
 export const FAB_STORAGE_KEY_HIDDEN = 'avc-voice-fab-hidden'
+export const FAB_STORAGE_KEY_DOCKED = 'avc-voice-fab-docked'
 export const FAB_HIDDEN_CHANGE_EVENT = 'avc-fab-hidden-change'
 
 export function isFabHidden(): boolean {

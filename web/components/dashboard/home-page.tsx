@@ -88,10 +88,6 @@ export function HomePage({
     return () => observer.disconnect()
   }, [onVoiceSectionVisibleChange])
 
-  function irAVoz() {
-    voiceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-
   function cambiarObjetivo(valor: number) {
     setObjetivo(valor)
     if (envioObjetivo.current !== null) window.clearTimeout(envioObjetivo.current)
@@ -266,14 +262,10 @@ export function HomePage({
               <Square className="h-4 w-4" fill="currentColor" />
               STOP
             </button>
-            <button
-              type="button"
-              aria-label="Control por voz"
-              onClick={irAVoz}
-              className="flex h-14 w-14 flex-none items-center justify-center rounded-full border border-[#3ddc6a]/40 bg-[#3ddc6a]/15 text-[#7cf0a0]"
-            >
-              <Mic className="h-[22px] w-[22px]" />
-            </button>
+            <div
+              id="voice-mic-dock"
+              className="h-14 w-14 flex-none rounded-full outline outline-1 -outline-offset-1 outline-dashed outline-[#3ddc6a]/50"
+            />
           </div>
         </div>
       </div>

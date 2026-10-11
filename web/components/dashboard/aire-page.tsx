@@ -263,6 +263,12 @@ export function AirePage({ data }: { data: AVCData }) {
               </Funcion>
             </div>
           </div>
+          <div className="flex justify-end">
+            <div
+              id="voice-mic-dock"
+              className="h-14 w-14 rounded-full outline outline-1 -outline-offset-1 outline-dashed outline-sky-400/50"
+            />
+          </div>
         </section>
       </div>
 
