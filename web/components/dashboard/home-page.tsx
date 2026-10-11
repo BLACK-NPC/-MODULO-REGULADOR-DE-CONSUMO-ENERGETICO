@@ -89,7 +89,9 @@ export function HomePage({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <Thermometer className="w-5 h-5 text-foreground" />
+            <span className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <Thermometer className="w-5 h-5 text-blue-600" />
+            </span>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground">TEMPERATURA</p>
             <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.temperatura} C` : '-- C'}</p>
             <div className="flex items-center gap-2">
@@ -105,21 +107,27 @@ export function HomePage({
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <Droplets className="w-5 h-5 text-foreground" />
+            <span className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center">
+              <Droplets className="w-5 h-5 text-sky-600" />
+            </span>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground">HUMEDAD</p>
             <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.humedad} %` : '-- %'}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <Zap className="w-5 h-5 text-foreground" />
+            <span className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-emerald-600" />
+            </span>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground">POTENCIA</p>
             <p className="text-2xl font-semibold text-foreground">{potenciaTexto}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <User className="w-5 h-5 text-foreground" />
+            <span className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <User className="w-5 h-5 text-purple-500" />
+            </span>
             <p className="text-[11px] font-medium tracking-wide text-muted-foreground">PRESENCIA</p>
             <p className="text-2xl font-semibold text-foreground inline-flex items-center gap-2">
               <span className={cn('w-2.5 h-2.5 rounded-full', lecturaViva && data.movimiento ? 'bg-green-500' : 'bg-muted-foreground')} />
