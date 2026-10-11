@@ -110,7 +110,7 @@ export function HomePage({
           <h2 className="mt-0.5 text-2xl font-bold text-foreground sm:text-3xl">Control de ventilacion</h2>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-bold text-foreground">
-          <span className={cn('h-2 w-2 rounded-full', lecturaViva ? 'bg-sky-400' : 'bg-muted-foreground')} />
+          <span className={cn('h-2 w-2 rounded-full', lecturaViva ? 'bg-[#3ddc6a]' : 'bg-muted-foreground')} />
           {isDemo ? 'Demostracion' : lecturaViva ? 'En linea' : 'Sin lectura'}
         </span>
       </div>
@@ -142,11 +142,11 @@ export function HomePage({
             >
               <defs>
                 <linearGradient id="vent-anillo" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#0ea5e9" />
-                  <stop offset="1" stopColor="#7dd3fc" />
+                  <stop offset="0" stopColor="#2EAF4A" />
+                  <stop offset="1" stopColor="#7cf0a0" />
                 </linearGradient>
               </defs>
-              <g fill="#38bdf8" opacity="0.1">
+              <g fill="#3ddc6a" opacity="0.1">
                 <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(20 110 110)" />
                 <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(110 110 110)" />
                 <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(200 110 110)" />
@@ -175,10 +175,10 @@ export function HomePage({
             <span
               className={cn(
                 'inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold',
-                motorMarcha ? 'bg-sky-500/15 text-sky-300' : 'bg-secondary text-muted-foreground',
+                motorMarcha ? 'bg-[#3ddc6a]/15 text-[#7cf0a0]' : 'bg-secondary text-muted-foreground',
               )}
             >
-              <span className={cn('h-2 w-2 rounded-full', motorMarcha ? 'bg-sky-400' : 'bg-muted-foreground')} />
+              <span className={cn('h-2 w-2 rounded-full', motorMarcha ? 'bg-[#3ddc6a]' : 'bg-muted-foreground')} />
               {lecturaViva ? (data.estado === 'running' ? 'En marcha' : 'Parado') : '--'}
             </span>
             <span
@@ -200,7 +200,7 @@ export function HomePage({
                 type="button"
                 aria-pressed={!manual}
                 onClick={() => onUpdate('modo', 'AUTOMATICO')}
-                className={cn('h-11 rounded-xl text-sm font-bold', !manual ? 'bg-sky-400 text-slate-950' : 'bg-transparent text-muted-foreground')}
+                className={cn('h-11 rounded-xl text-sm font-bold', !manual ? 'bg-[#3ddc6a] text-[#06210f]' : 'bg-transparent text-muted-foreground')}
               >
                 Automatico
               </button>
@@ -208,7 +208,7 @@ export function HomePage({
                 type="button"
                 aria-pressed={manual}
                 onClick={() => onUpdate('modo', 'MANUAL')}
-                className={cn('h-11 rounded-xl text-sm font-bold', manual ? 'bg-sky-400 text-slate-950' : 'bg-transparent text-muted-foreground')}
+                className={cn('h-11 rounded-xl text-sm font-bold', manual ? 'bg-[#3ddc6a] text-[#06210f]' : 'bg-transparent text-muted-foreground')}
               >
                 Manual
               </button>
@@ -226,7 +226,7 @@ export function HomePage({
                   max="100"
                   value={data.velocidad}
                   onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
-                  className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-secondary accent-sky-400"
+                  className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-secondary accent-[#3ddc6a]"
                 />
                 <span className="w-12 text-right font-medium text-foreground">{data.velocidad}%</span>
               </div>
@@ -252,7 +252,7 @@ export function HomePage({
               type="button"
               onClick={() => onUpdate('estado', 'running')}
               disabled={data.estado === 'running'}
-              className="flex h-14 flex-1 basis-[90px] items-center justify-center gap-2 rounded-2xl bg-sky-400 text-[15px] font-bold text-slate-950 disabled:opacity-50"
+              className="flex h-14 flex-1 basis-[90px] items-center justify-center gap-2 rounded-2xl bg-[#3ddc6a] text-[15px] font-bold text-[#06210f] disabled:opacity-50"
             >
               <Play className="h-4 w-4" fill="currentColor" />
               START
@@ -270,7 +270,7 @@ export function HomePage({
               type="button"
               aria-label="Control por voz"
               onClick={irAVoz}
-              className="flex h-14 w-14 flex-none items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/15 text-sky-300"
+              className="flex h-14 w-14 flex-none items-center justify-center rounded-full border border-[#3ddc6a]/40 bg-[#3ddc6a]/15 text-[#7cf0a0]"
             >
               <Mic className="h-[22px] w-[22px]" />
             </button>
@@ -283,11 +283,11 @@ export function HomePage({
         ref={voiceSectionRef}
         aria-label="Control por voz"
       >
-        <Card className="bg-card border-sky-500/30">
+        <Card className="bg-card border-[#3ddc6a]/30">
           <CardContent className="p-6 space-y-4">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-sky-500/20 flex items-center justify-center shrink-0">
-                <Mic className="w-5 h-5 text-sky-400" />
+              <div className="w-10 h-10 rounded-lg bg-[#3ddc6a]/20 flex items-center justify-center shrink-0">
+                <Mic className="w-5 h-5 text-[#7cf0a0]" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Control por voz</h3>
@@ -393,9 +393,9 @@ function Ruleta({ min, max, valor, onCambio }: { min: number; max: number; valor
           ir(limitado + 1)
         }
       }}
-      className="relative h-16 w-full overflow-hidden rounded-full border border-border bg-secondary outline-none focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400/40"
+      className="relative h-16 w-full overflow-hidden rounded-full border border-border bg-secondary outline-none focus-visible:border-[#3ddc6a] focus-visible:ring-2 focus-visible:ring-[#3ddc6a]/40"
     >
-      <div className="pointer-events-none absolute inset-y-2 left-1/3 w-1/3 rounded-full border border-sky-400/60 bg-sky-500/10" />
+      <div className="pointer-events-none absolute inset-y-2 left-1/3 w-1/3 rounded-full border border-[#3ddc6a]/60 bg-[#3ddc6a]/10" />
       <div
         ref={caja}
         onScroll={alDesplazar}
@@ -418,7 +418,7 @@ function Ruleta({ min, max, valor, onCambio }: { min: number; max: number; valor
               }}
               className={cn(
                 'flex w-1/3 flex-none snap-center items-center justify-center font-bold transition-all',
-                distancia === 0 ? 'text-3xl text-sky-300' : distancia === 1 ? 'text-xl text-muted-foreground' : 'text-base text-muted-foreground/30',
+                distancia === 0 ? 'text-3xl text-[#7cf0a0]' : distancia === 1 ? 'text-xl text-muted-foreground' : 'text-base text-muted-foreground/30',
               )}
             >
               {n}
@@ -435,7 +435,7 @@ function Lectura({ icono, nombre, valor, nota }: { icono: React.ReactNode; nombr
   return (
     <article className="rounded-[18px] border border-border bg-card p-3.5">
       <div className="flex items-center gap-2 text-[11px] tracking-wider text-muted-foreground">
-        <span className="text-sky-400">{icono}</span>
+        <span className="text-[#3ddc6a]">{icono}</span>
         {nombre}
       </div>
       <p className="mt-2 text-[28px] font-semibold leading-tight text-foreground">{valor}</p>
