@@ -263,8 +263,7 @@ export default function Dashboard() {
 
         <footer className="lg:ml-64 bg-card border-t border-border px-4 py-4 mt-auto shrink-0">
           <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>{APP_NAME} | Modulo regulador de consumo energetico | Proyecto de Grado</p>
-            <p>Desarrollado con Next.js + Firebase Realtime Database</p>
+            <p>{APP_NAME} | Modulo regulador de consumo energetico</p>
           </div>
         </footer>
       </div>
