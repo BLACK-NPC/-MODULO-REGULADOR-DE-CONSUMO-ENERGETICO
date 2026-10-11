@@ -1,17 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Thermometer, Droplets, Zap, Play, Square, Mic, User } from 'lucide-react'
+import { Thermometer, Droplets, Zap, Play, Square, Mic, User, Minus, Plus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { VoiceAssistant } from '@/components/voice-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
 const HEARTBEAT_MS = 25000
+const RADIO_ANILLO = 94
+const LARGO_ANILLO = 2 * Math.PI * RADIO_ANILLO
 
 interface HomePageProps {
   data: AVCData
@@ -39,11 +38,25 @@ export function HomePage({
     return () => window.clearInterval(intervalId)
   }, [])
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
-  const arc = 2 * Math.PI * 16
-  const arcOffset = arc - (velocidadPorcentaje / 100) * arc
+  const anilloOffset = LARGO_ANILLO * (1 - velocidadPorcentaje / 100)
   const motorMarcha = lecturaViva && data.estado === 'running'
+  const hayFalla = lecturaViva && data.diag.fallas > 0
   const estadoTexto = !lecturaViva ? 'Sin lectura' : data.diag.fallas > 0 ? `${data.diag.fallas} falla(s)` : 'Listo'
-  const potenciaTexto = lecturaViva && data.config.sensorPotencia ? `${data.potencia} W` : '-- W'
+  const hayTemp = lecturaViva && data.config.sensorTemperatura
+  const hayHum = lecturaViva && data.config.sensorHumedad
+  const hayPot = lecturaViva && data.config.sensorPotencia
+  const temperaturaTexto = hayTemp ? `${data.temperatura} °C` : '-- °C'
+  const humedadTexto = hayHum ? `${data.humedad} %` : '-- %'
+  const potenciaTexto = hayPot ? `${data.potencia} W` : '-- W'
+  const manual = data.modo === 'MANUAL'
+
+  const diferencia = hayTemp ? Math.round((data.temperatura - data.setpoint) * 10) / 10 : null
+  const notaTemperatura =
+    diferencia === null
+      ? 'Sin lectura'
+      : diferencia === 0
+        ? 'En el objetivo'
+        : `${Math.abs(diferencia)} °C ${diferencia > 0 ? 'sobre' : 'bajo'} el objetivo`
 
   useEffect(() => {
     if (!onVoiceSectionVisibleChange) return
@@ -61,14 +74,22 @@ export function HomePage({
     return () => observer.disconnect()
   }, [onVoiceSectionVisibleChange])
 
+  function irAVoz() {
+    voiceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+      {/* Cabecera */}
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Control de ventilacion</h2>
-          <p className="text-muted-foreground">Lecturas, motor y marcha</p>
+          <p className="text-xs font-medium tracking-wider text-muted-foreground">ECOPULSE</p>
+          <h2 className="mt-0.5 text-2xl font-bold text-foreground sm:text-3xl">Control de ventilacion</h2>
         </div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-bold text-foreground">
+          <span className={cn('h-2 w-2 rounded-full', lecturaViva ? 'bg-sky-400' : 'bg-muted-foreground')} />
+          {isDemo ? 'Demostracion' : lecturaViva ? 'En linea' : 'Sin lectura'}
+        </span>
       </div>
 
       {!lecturaViva ? (
@@ -86,158 +107,184 @@ export function HomePage({
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <span className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <Thermometer className="w-5 h-5 text-blue-600" />
-            </span>
-            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">TEMPERATURA</p>
-            <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.temperatura} C` : '-- C'}</p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">SP</span>
-              <Input
-                type="number"
-                value={data.setpoint}
-                onChange={(e) => onUpdate('setpoint', Number(e.target.value))}
-                className="w-16 h-7 text-center bg-secondary border-border"
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4">
+        {/* Velocidad del motor */}
+        <section className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-border bg-card px-4 py-6">
+          <div className="relative aspect-square w-full max-w-[280px]">
+            <svg
+              viewBox="0 0 220 220"
+              className="block h-full w-full"
+              role="img"
+              aria-label={`Velocidad del motor al ${velocidadPorcentaje} por ciento`}
+            >
+              <defs>
+                <linearGradient id="vent-anillo" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#0ea5e9" />
+                  <stop offset="1" stopColor="#7dd3fc" />
+                </linearGradient>
+              </defs>
+              <g fill="#38bdf8" opacity="0.1">
+                <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(20 110 110)" />
+                <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(110 110 110)" />
+                <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(200 110 110)" />
+                <ellipse cx="110" cy="66" rx="18" ry="38" transform="rotate(290 110 110)" />
+              </g>
+              <circle cx="110" cy="110" r={RADIO_ANILLO} fill="none" stroke="currentColor" className="text-border" strokeWidth="12" />
+              <circle
+                cx="110"
+                cy="110"
+                r={RADIO_ANILLO}
+                fill="none"
+                stroke="url(#vent-anillo)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={LARGO_ANILLO}
+                strokeDashoffset={anilloOffset}
+                transform="rotate(-90 110 110)"
               />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-5xl font-bold leading-none text-foreground sm:text-6xl">{velocidadPorcentaje}%</span>
+              <span className="mt-1.5 text-xs text-muted-foreground">velocidad del motor</span>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <span className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center">
-              <Droplets className="w-5 h-5 text-sky-600" />
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[13px] font-bold',
+                motorMarcha ? 'bg-sky-500/15 text-sky-300' : 'bg-secondary text-muted-foreground',
+              )}
+            >
+              <span className={cn('h-2 w-2 rounded-full', motorMarcha ? 'bg-sky-400' : 'bg-muted-foreground')} />
+              {lecturaViva ? (data.estado === 'running' ? 'En marcha' : 'Parado') : '--'}
             </span>
-            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">HUMEDAD</p>
-            <p className="text-2xl font-semibold text-foreground">{lecturaViva ? `${data.humedad} %` : '-- %'}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <span className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-emerald-600" />
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full bg-secondary px-3.5 py-2 text-[13px] font-bold',
+                hayFalla ? 'text-red-400' : 'text-muted-foreground',
+              )}
+            >
+              Estado: {estadoTexto}
             </span>
-            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">POTENCIA</p>
-            <p className="text-2xl font-semibold text-foreground">{potenciaTexto}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <span className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-              <User className="w-5 h-5 text-purple-500" />
-            </span>
-            <p className="text-[11px] font-medium tracking-wide text-muted-foreground">PRESENCIA</p>
-            <p className="text-2xl font-semibold text-foreground inline-flex items-center gap-2">
-              <span className={cn('w-2.5 h-2.5 rounded-full', lecturaViva && data.movimiento ? 'bg-green-500' : 'bg-muted-foreground')} />
-              {lecturaViva ? (data.movimiento ? 'Si' : 'No') : '--'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">MOTOR</p>
-              <p className="text-base font-medium text-foreground inline-flex items-center gap-2 mt-1">
-                <span className={cn('w-2.5 h-2.5 rounded-full', motorMarcha ? 'bg-green-500' : 'bg-muted-foreground')} />
-                {lecturaViva ? (data.estado === 'running' ? 'En marcha' : 'Parado') : '--'}
-              </p>
+        <div className="flex flex-col gap-4">
+          {/* Modo y temperatura objetivo */}
+          <section className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-3.5">
+            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-background p-1">
+              <button
+                type="button"
+                aria-pressed={!manual}
+                onClick={() => onUpdate('modo', 'AUTOMATICO')}
+                className={cn('h-11 rounded-xl text-sm font-bold', !manual ? 'bg-sky-400 text-slate-950' : 'bg-transparent text-muted-foreground')}
+              >
+                Automatico
+              </button>
+              <button
+                type="button"
+                aria-pressed={manual}
+                onClick={() => onUpdate('modo', 'MANUAL')}
+                className={cn('h-11 rounded-xl text-sm font-bold', manual ? 'bg-sky-400 text-slate-950' : 'bg-transparent text-muted-foreground')}
+              >
+                Manual
+              </button>
             </div>
-            <div className="border-l border-border pl-3">
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">ESTADO</p>
-              <p className={cn('text-base font-medium mt-1', data.diag.fallas > 0 && lecturaViva ? 'text-red-400' : 'text-foreground')}>
-                {estadoTexto}
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+              <div>
+                <p className="text-xs text-muted-foreground">Temperatura objetivo</p>
+                <p className="mt-0.5 text-2xl font-semibold text-foreground">{data.setpoint} °C</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  aria-label="Bajar temperatura objetivo"
+                  onClick={() => onUpdate('setpoint', data.setpoint - 1)}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-foreground hover:bg-sky-500/10"
+                >
+                  <Minus className="h-5 w-5" strokeWidth={2.4} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Subir temperatura objetivo"
+                  onClick={() => onUpdate('setpoint', data.setpoint + 1)}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-foreground hover:bg-sky-500/10"
+                >
+                  <Plus className="h-5 w-5" strokeWidth={2.4} />
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="relative w-12 h-12 shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="4" className="text-secondary" />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  strokeDasharray={arc}
-                  strokeDashoffset={arcOffset}
-                  className="text-blue-500"
+            {manual ? (
+              <div className="flex items-center gap-4 px-1">
+                <span className="shrink-0 text-xs text-muted-foreground">Velocidad manual</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={data.velocidad}
+                  onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
+                  className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-secondary accent-sky-400"
                 />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
-                {velocidadPorcentaje}%
-              </span>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">VELOCIDAD ACTUAL</p>
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground">DEL MOTOR</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                <span className="w-12 text-right font-medium text-foreground">{data.velocidad}%</span>
+              </div>
+            ) : null}
+          </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.4fr] gap-3">
-        <Button
-          onClick={() => onUpdate('estado', 'running')}
-          disabled={data.estado === 'running'}
-          className="h-12 bg-foreground text-background hover:bg-foreground/90 font-semibold disabled:opacity-50"
-        >
-          <Play className="w-4 h-4 mr-2" />
-          START
-        </Button>
-        <Button
-          onClick={() => onUpdate('estado', 'stopped')}
-          disabled={data.estado === 'stopped'}
-          variant="outline"
-          className="h-12 bg-secondary border-border text-foreground font-semibold disabled:opacity-50"
-        >
-          <Square className="w-4 h-4 mr-2" />
-          STOP
-        </Button>
-        <Select value={data.modo} onValueChange={(value) => onUpdate('modo', value)}>
-          <SelectTrigger className="h-12 bg-card border-blue-500/60">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="AUTOMATICO">AUTOMATICO</SelectItem>
-            <SelectItem value="MANUAL">MANUAL</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          {/* Lecturas */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Lectura icono={<Thermometer className="h-[18px] w-[18px]" />} nombre="TEMPERATURA" valor={temperaturaTexto} nota={notaTemperatura} />
+            <Lectura icono={<Droplets className="h-[18px] w-[18px]" />} nombre="HUMEDAD" valor={humedadTexto} nota="Relativa" />
+            <Lectura icono={<Zap className="h-[18px] w-[18px]" />} nombre="POTENCIA" valor={potenciaTexto} nota="Consumo del motor" />
+            <Lectura
+              icono={<User className="h-[18px] w-[18px]" />}
+              nombre="PRESENCIA"
+              valor={lecturaViva ? (data.movimiento ? 'Si' : 'No') : '--'}
+              nota={lecturaViva ? (data.movimiento ? 'Detectada' : 'Sin presencia') : 'Sin lectura'}
+            />
+          </div>
 
-      {data.modo === 'MANUAL' ? (
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-muted-foreground shrink-0">Velocidad manual</span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={data.velocidad}
-            onChange={(e) => onUpdate('velocidad', Number(e.target.value))}
-            className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-blue-500"
-          />
-          <span className="text-foreground font-medium w-12 text-right">{data.velocidad}%</span>
+          {/* Acciones */}
+          <div className="flex flex-wrap gap-2.5">
+            <button
+              type="button"
+              onClick={() => onUpdate('estado', 'running')}
+              disabled={data.estado === 'running'}
+              className="flex h-14 flex-1 basis-[90px] items-center justify-center gap-2 rounded-2xl bg-sky-400 text-[15px] font-bold text-slate-950 disabled:opacity-50"
+            >
+              <Play className="h-4 w-4" fill="currentColor" />
+              START
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdate('estado', 'stopped')}
+              disabled={data.estado === 'stopped'}
+              className="flex h-14 flex-1 basis-[90px] items-center justify-center gap-2 rounded-2xl border border-border bg-secondary text-[15px] font-bold text-foreground disabled:opacity-50"
+            >
+              <Square className="h-4 w-4" fill="currentColor" />
+              STOP
+            </button>
+            <button
+              type="button"
+              aria-label="Control por voz"
+              onClick={irAVoz}
+              className="flex h-14 w-14 flex-none items-center justify-center rounded-full border border-sky-400/40 bg-sky-500/15 text-sky-300"
+            >
+              <Mic className="h-[22px] w-[22px]" />
+            </button>
+          </div>
         </div>
-      ) : null}
+      </div>
 
       <section
         id="voice-assistant-section"
         ref={voiceSectionRef}
         aria-label="Control por voz"
       >
-        <Card className="bg-card border-emerald-500/30">
+        <Card className="bg-card border-sky-500/30">
           <CardContent className="p-6 space-y-4">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-                <Mic className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-lg bg-sky-500/20 flex items-center justify-center shrink-0">
+                <Mic className="w-5 h-5 text-sky-400" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Control por voz</h3>
@@ -253,5 +300,18 @@ export function HomePage({
         </Card>
       </section>
     </div>
+  )
+}
+
+function Lectura({ icono, nombre, valor, nota }: { icono: React.ReactNode; nombre: string; valor: string; nota: string }) {
+  return (
+    <article className="rounded-[18px] border border-border bg-card p-3.5">
+      <div className="flex items-center gap-2 text-[11px] tracking-wider text-muted-foreground">
+        <span className="text-sky-400">{icono}</span>
+        {nombre}
+      </div>
+      <p className="mt-2 text-[28px] font-semibold leading-tight text-foreground">{valor}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{nota}</p>
+    </article>
   )
 }
