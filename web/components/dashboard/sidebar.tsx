@@ -11,6 +11,7 @@ interface SidebarProps {
   currentPage: Page
   onNavigate: (page: Page) => void
   wifiConnected: boolean
+  faultCount?: number
 }
 
 const navItems = [
@@ -21,7 +22,8 @@ const navItems = [
   { id: 'datos-externos' as Page, label: 'Datos Externos', icon: Cloud },
 ]
 
-export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps) {
+export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0 }: SidebarProps) {
+  const fallas = Math.max(0, Math.round(faultCount))
   return (
     <>
       {/* Desktop Sidebar */}
@@ -58,7 +60,12 @@ export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps
                   )}
                 >
                   <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium flex-1 text-left">{item.label}</span>
+                  {item.id === 'alertas' && fallas > 0 ? (
+                    <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-[11px] font-bold text-white flex items-center justify-center">
+                      {fallas}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))}
@@ -92,7 +99,14 @@ export function Sidebar({ currentPage, onNavigate, wifiConnected }: SidebarProps
                     : 'text-muted-foreground'
                 )}
               >
-                <item.icon className="w-5 h-5" />
+                <span className="relative">
+                  <item.icon className="w-5 h-5" />
+                  {item.id === 'alertas' && fallas > 0 ? (
+                    <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">
+                      {fallas}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-xs font-medium">{item.label}</span>
               </button>
             </li>

@@ -239,6 +239,7 @@ export default function Dashboard() {
           currentPage={currentPage}
           onNavigate={setCurrentPage}
           wifiConnected={data.wifi.conectado}
+          faultCount={data.diag.fallas}
         />
 
         <main className="lg:ml-64 flex-1 pb-20 lg:pb-0">
