@@ -1,11 +1,11 @@
 'use client'
 
 import Image from 'next/image'
-import { Home, Activity, Settings, AlertTriangle, Cloud } from 'lucide-react'
+import { Home, Activity, Settings, AlertTriangle, Cloud, Snowflake } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 
-type Page = 'home' | 'monitoreo' | 'configuraciones' | 'alertas' | 'datos-externos'
+type Page = 'home' | 'monitoreo' | 'configuraciones' | 'alertas' | 'datos-externos' | 'aire'
 
 interface SidebarProps {
   currentPage: Page
@@ -20,6 +20,7 @@ const navItems = [
   { id: 'configuraciones' as Page, label: 'Configuraciones', icon: Settings },
   { id: 'alertas' as Page, label: 'Alertas', icon: AlertTriangle },
   { id: 'datos-externos' as Page, label: 'Datos Externos', icon: Cloud },
+  { id: 'aire' as Page, label: 'Aire', icon: Snowflake },
 ]
 
 export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0 }: SidebarProps) {

@@ -8,6 +8,7 @@ import { MonitoreoPage } from '@/components/dashboard/monitoreo-page'
 import { ConfiguracionesPage } from '@/components/dashboard/configuraciones-page'
 import { AlertasPage } from '@/components/dashboard/alertas-page'
 import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
+import { AirePage } from '@/components/dashboard/aire-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
@@ -208,6 +209,8 @@ export default function Dashboard() {
         )
       case 'datos-externos':
         return <DatosExternosPage />
+      case 'aire':
+        return <AirePage data={data} />
       default:
         return (
           <HomePage

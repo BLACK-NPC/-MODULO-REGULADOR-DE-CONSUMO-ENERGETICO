@@ -18,6 +18,7 @@ export type DashboardPage =
   | 'configuraciones'
   | 'alertas'
   | 'datos-externos'
+  | 'aire'
 
 export interface VoiceFloatingAssistantProps {
   currentPage: DashboardPage
