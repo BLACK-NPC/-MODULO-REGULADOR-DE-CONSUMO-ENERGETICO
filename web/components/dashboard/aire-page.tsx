@@ -98,7 +98,8 @@ export function AirePage({ data }: { data: AVCData }) {
     const serie = data.historico?.[diaDeHoy()]?.temperatura ?? []
     return serie
       .map((valor, hora) => ({ hora, valor: Number(valor) }))
-      .filter((punto) => Number.isFinite(punto.valor))
+      // El HMI publica 0 en las horas sin muestra: no son lecturas y no se dibujan.
+      .filter((punto) => Number.isFinite(punto.valor) && punto.valor !== 0)
   }, [data.historico])
 
   const hayTemp = data.config.sensorTemperatura
@@ -268,14 +269,10 @@ export function AirePage({ data }: { data: AVCData }) {
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-4">
         <section className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
           <div className="flex items-baseline justify-between gap-2">
-            <p className="text-lg font-semibold text-foreground">Historial de temperatura</p>
+            <p className="text-lg font-semibold text-foreground">Temperatura vs tiempo</p>
             <span className="text-xs text-muted-foreground">Hoy</span>
           </div>
           <Curva puntos={puntos} objetivo={estado.objetivo} />
-          <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>00:00</span>
-            <span>23:00</span>
-          </div>
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
               <span className="inline-block h-[3px] w-4 rounded-sm bg-sky-400" />
@@ -500,21 +497,60 @@ function Curva({ puntos, objetivo }: { puntos: { hora: number; valor: number }[]
       </div>
     )
   }
-  const min = Math.min(16, ...puntos.map((punto) => punto.valor), objetivo)
-  const max = Math.max(30, ...puntos.map((punto) => punto.valor), objetivo)
-  const span = max - min || 1
-  const x = (hora: number) => 18 + (hora / 23) * 224
-  const y = (valor: number) => 110 - ((valor - min) / span) * 100
+  // Marco del grafico (unidades del viewBox) y margen interior: la curva nunca toca el borde.
+  const izq = 44
+  const der = 292
+  const arriba = 12
+  const abajo = 124
+  const margenX = 12
+  const margenY = 14
+
+  const valoresY = puntos.map((punto) => punto.valor)
+  const bajo = Math.floor(Math.min(...valoresY, objetivo)) - 1
+  const alto = Math.ceil(Math.max(...valoresY, objetivo)) + 1
+  const paso = Math.max(1, Math.ceil((alto - bajo) / 4))
+  const min = bajo
+  const max = bajo + paso * 4
+
+  const x = (hora: number) => izq + margenX + (hora / 23) * (der - izq - margenX * 2)
+  const y = (valor: number) => abajo - margenY - ((valor - min) / (max - min)) * (abajo - arriba - margenY * 2)
   const d = puntos.map((punto, index) => `${index === 0 ? 'M' : 'L'}${x(punto.hora).toFixed(1)} ${y(punto.valor).toFixed(1)}`).join(' ')
   const sp = y(objetivo)
+  const marcasY = [0, 1, 2, 3, 4].map((i) => min + paso * i)
+  const marcasX = [0, 6, 12, 18, 23]
+
   return (
-    <svg viewBox="0 0 250 125" className="block h-auto w-full" role="img" aria-label={`Temperatura de hoy frente al objetivo de ${objetivo} grados`}>
-      <g stroke="currentColor" className="text-border">
-        <path d="M18 10H242M18 35H242M18 60H242M18 85H242M18 110H242" />
-        <path d="M18 10V110M74 10V110M130 10V110M186 10V110M242 10V110" />
+    <svg viewBox="0 0 300 160" className="block h-auto w-full" role="img" aria-label={`Temperatura frente al tiempo de hoy, objetivo ${objetivo} grados`}>
+      <g stroke="currentColor" className="text-border" strokeWidth="1">
+        {marcasY.map((valor) => (
+          <path key={`y${valor}`} d={`M${izq} ${y(valor).toFixed(1)}H${der}`} />
+        ))}
+        {marcasX.map((hora) => (
+          <path key={`x${hora}`} d={`M${x(hora).toFixed(1)} ${arriba}V${abajo}`} />
+        ))}
+        <rect x={izq} y={arriba} width={der - izq} height={abajo - arriba} fill="none" />
       </g>
-      <path d={d} fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={`M18 ${sp.toFixed(1)}H242`} stroke="currentColor" className="text-muted-foreground" strokeWidth="2" strokeDasharray="5 4" />
+      <g className="fill-muted-foreground" fontSize="9" textAnchor="end">
+        {marcasY.map((valor) => (
+          <text key={`ty${valor}`} x={izq - 6} y={y(valor) + 3}>
+            {valor}
+          </text>
+        ))}
+      </g>
+      <g className="fill-muted-foreground" fontSize="9" textAnchor="middle">
+        {marcasX.map((hora) => (
+          <text key={`tx${hora}`} x={x(hora).toFixed(1)} y={abajo + 13}>
+            {hora}
+          </text>
+        ))}
+        <text x={(izq + der) / 2} y={abajo + 28}>Tiempo (h)</text>
+        <text transform={`translate(10 ${(arriba + abajo) / 2}) rotate(-90)`}>Temperatura (°C)</text>
+      </g>
+      <path d={`M${izq + 1} ${sp.toFixed(1)}H${der - 1}`} stroke="currentColor" className="text-muted-foreground" strokeWidth="1.5" strokeDasharray="5 4" />
+      <path d={d} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      {puntos.map((punto) => (
+        <circle key={punto.hora} cx={x(punto.hora).toFixed(1)} cy={y(punto.valor).toFixed(1)} r="2.5" fill="#38bdf8" />
+      ))}
     </svg>
   )
 }
