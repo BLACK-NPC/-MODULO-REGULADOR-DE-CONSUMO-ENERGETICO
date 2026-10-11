@@ -362,14 +362,6 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
               </ResponsiveContainer>
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
-            {ORDEN.map((metrica) => (
-              <span key={metrica} className={cn('inline-flex items-center gap-2 h-7 px-2 text-xs', visible[metrica] ? 'text-foreground' : 'text-muted-foreground')}>
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: COLORES[metrica] }} />
-                {metrica === 'temperatura' ? 'TEMP' : metrica === 'humedad' ? 'HUM' : 'POT'}
-              </span>
-            ))}
-          </div>
           {paneles.length > 0 ? (
             <p className="text-center text-xs text-muted-foreground">desliza para ver mas</p>
           ) : null}
