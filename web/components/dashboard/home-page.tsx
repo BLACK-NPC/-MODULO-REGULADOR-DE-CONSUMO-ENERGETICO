@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Thermometer, Droplets, Zap, Play, Square, Mic, User, Minus, Plus } from 'lucide-react'
+import { Thermometer, Droplets, Zap, Play, Square, Mic, User } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { VoiceAssistant } from '@/components/voice-assistant'
 import type { VoiceIntent } from '@/components/voice-assistant'
@@ -30,12 +30,24 @@ export function HomePage({
   lastHeartbeatAt = null,
 }: HomePageProps) {
   const voiceSectionRef = useRef<HTMLElement>(null)
+  const envioObjetivo = useRef<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [objetivo, setObjetivo] = useState(data.setpoint)
   const lecturaViva = !isDemo && lastHeartbeatAt !== null && now - lastHeartbeatAt <= HEARTBEAT_MS
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    setObjetivo(data.setpoint)
+  }, [data.setpoint])
+
+  useEffect(() => {
+    return () => {
+      if (envioObjetivo.current !== null) window.clearTimeout(envioObjetivo.current)
+    }
   }, [])
   const velocidadPorcentaje = Math.min(100, Math.max(0, data.velocidad))
   const anilloOffset = LARGO_ANILLO * (1 - velocidadPorcentaje / 100)
@@ -50,7 +62,9 @@ export function HomePage({
   const potenciaTexto = hayPot ? `${data.potencia} W` : '-- W'
   const manual = data.modo === 'MANUAL'
 
-  const diferencia = hayTemp ? Math.round((data.temperatura - data.setpoint) * 10) / 10 : null
+  const minObjetivo = Math.round(Math.min(data.config.spMin, data.config.spMax))
+  const maxObjetivo = Math.round(Math.max(data.config.spMin, data.config.spMax))
+  const diferencia = hayTemp ? Math.round((data.temperatura - objetivo) * 10) / 10 : null
   const notaTemperatura =
     diferencia === null
       ? 'Sin lectura'
@@ -76,6 +90,15 @@ export function HomePage({
 
   function irAVoz() {
     voiceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  function cambiarObjetivo(valor: number) {
+    setObjetivo(valor)
+    if (envioObjetivo.current !== null) window.clearTimeout(envioObjetivo.current)
+    envioObjetivo.current = window.setTimeout(() => {
+      envioObjetivo.current = null
+      if (valor !== data.setpoint) onUpdate('setpoint', valor)
+    }, 450)
   }
 
   return (
@@ -190,29 +213,9 @@ export function HomePage({
                 Manual
               </button>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-              <div>
-                <p className="text-xs text-muted-foreground">Temperatura objetivo</p>
-                <p className="mt-0.5 text-2xl font-semibold text-foreground">{data.setpoint} °C</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  aria-label="Bajar temperatura objetivo"
-                  onClick={() => onUpdate('setpoint', data.setpoint - 1)}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-foreground hover:bg-sky-500/10"
-                >
-                  <Minus className="h-5 w-5" strokeWidth={2.4} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Subir temperatura objetivo"
-                  onClick={() => onUpdate('setpoint', data.setpoint + 1)}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-foreground hover:bg-sky-500/10"
-                >
-                  <Plus className="h-5 w-5" strokeWidth={2.4} />
-                </button>
-              </div>
+            <div className="flex flex-col gap-2 px-1">
+              <p className="text-xs text-muted-foreground">Temperatura objetivo</p>
+              <Ruleta min={minObjetivo} max={maxObjetivo} valor={objetivo} onCambio={cambiarObjetivo} />
             </div>
             {manual ? (
               <div className="flex items-center gap-4 px-1">
@@ -299,6 +302,131 @@ export function HomePage({
           </CardContent>
         </Card>
       </section>
+    </div>
+  )
+}
+
+function Ruleta({ min, max, valor, onCambio }: { min: number; max: number; valor: number; onCambio: (valor: number) => void }) {
+  const caja = useRef<HTMLDivElement>(null)
+  const arrastre = useRef<{ x: number; scroll: number; movido: boolean } | null>(null)
+  const valores = Array.from({ length: max - min + 1 }, (_, i) => min + i)
+  const limitado = Math.min(max, Math.max(min, valor))
+
+  function ancho() {
+    return (caja.current?.clientWidth ?? 0) / 3
+  }
+
+  function indiceActual() {
+    const w = ancho()
+    if (!w || !caja.current) return limitado - min
+    return Math.min(valores.length - 1, Math.max(0, Math.round(caja.current.scrollLeft / w)))
+  }
+
+  useEffect(() => {
+    const el = caja.current
+    const w = ancho()
+    if (!el || !w) return
+    if (indiceActual() !== limitado - min) el.scrollTo({ left: (limitado - min) * w, behavior: 'auto' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limitado, min, max])
+
+  function alDesplazar() {
+    const nuevo = min + indiceActual()
+    if (nuevo !== limitado) onCambio(nuevo)
+  }
+
+  function ir(nuevo: number) {
+    const el = caja.current
+    const w = ancho()
+    const siguiente = Math.min(max, Math.max(min, nuevo))
+    if (el && w) el.scrollTo({ left: (siguiente - min) * w, behavior: 'smooth' })
+    onCambio(siguiente)
+  }
+
+  function alPresionar(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== 'mouse' || !caja.current) return
+    arrastre.current = { x: e.clientX, scroll: caja.current.scrollLeft, movido: false }
+    caja.current.setPointerCapture(e.pointerId)
+    caja.current.style.scrollSnapType = 'none'
+  }
+
+  function alMover(e: React.PointerEvent<HTMLDivElement>) {
+    const a = arrastre.current
+    if (!a || !caja.current) return
+    const dx = e.clientX - a.x
+    if (Math.abs(dx) > 4) a.movido = true
+    caja.current.scrollLeft = a.scroll - dx
+  }
+
+  function alSoltar(e: React.PointerEvent<HTMLDivElement>) {
+    const el = caja.current
+    if (!arrastre.current || !el) return
+    const w = ancho()
+    const idx = indiceActual()
+    el.style.scrollSnapType = ''
+    if (!arrastre.current.movido && e.type === 'pointerup' && w) {
+      const casilla = Math.floor((e.clientX - el.getBoundingClientRect().left) / w)
+      ir(min + idx + casilla - 1)
+    } else if (w) {
+      el.scrollTo({ left: idx * w, behavior: 'smooth' })
+    }
+    window.setTimeout(() => {
+      arrastre.current = null
+    }, 0)
+  }
+
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label="Temperatura objetivo"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={limitado}
+      aria-valuetext={`${limitado} grados`}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+          e.preventDefault()
+          ir(limitado - 1)
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          ir(limitado + 1)
+        }
+      }}
+      className="relative h-16 w-full overflow-hidden rounded-full border border-border bg-secondary outline-none focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400/40"
+    >
+      <div className="pointer-events-none absolute inset-y-2 left-1/3 w-1/3 rounded-full border border-sky-400/60 bg-sky-500/10" />
+      <div
+        ref={caja}
+        onScroll={alDesplazar}
+        onPointerDown={alPresionar}
+        onPointerMove={alMover}
+        onPointerUp={alSoltar}
+        onPointerCancel={alSoltar}
+        className="flex h-full cursor-grab touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain select-none [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="w-1/3 flex-none" aria-hidden="true" />
+        {valores.map((n) => {
+          const distancia = Math.abs(n - limitado)
+          return (
+            <button
+              key={n}
+              type="button"
+              tabIndex={-1}
+              onClick={() => {
+                if (!arrastre.current?.movido) ir(n)
+              }}
+              className={cn(
+                'flex w-1/3 flex-none snap-center items-center justify-center font-bold transition-all',
+                distancia === 0 ? 'text-3xl text-sky-300' : distancia === 1 ? 'text-xl text-muted-foreground' : 'text-base text-muted-foreground/30',
+              )}
+            >
+              {n}
+            </button>
+          )
+        })}
+        <div className="w-1/3 flex-none" aria-hidden="true" />
+      </div>
     </div>
   )
 }
