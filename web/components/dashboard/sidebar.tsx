@@ -16,11 +16,11 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'home' as Page, label: 'Ventilacion', icon: Home },
+  { id: 'aire' as Page, label: 'Aire acondicionado', icon: Snowflake },
   { id: 'monitoreo' as Page, label: 'Monitoreo', icon: Activity },
   { id: 'configuraciones' as Page, label: 'Configuraciones', icon: Settings },
   { id: 'alertas' as Page, label: 'Alertas', icon: AlertTriangle },
   { id: 'datos-externos' as Page, label: 'Datos Externos', icon: Cloud },
-  { id: 'aire' as Page, label: 'Aire acondicionado', icon: Snowflake },
 ]
 
 export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0 }: SidebarProps) {
