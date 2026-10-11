@@ -223,7 +223,7 @@ export function buildVoiceActionAckMessage(
 }
 
 export const PAGE_LABELS: Record<string, string> = {
-  home: 'Panel principal',
+  home: 'Control de ventilacion',
   monitoreo: 'Monitoreo',
   configuraciones: 'Configuraciones',
   alertas: 'Alertas',

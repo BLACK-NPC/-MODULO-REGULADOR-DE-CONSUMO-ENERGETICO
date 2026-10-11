@@ -66,7 +66,7 @@ export function HomePage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">HOME</h2>
+          <h2 className="text-2xl font-bold text-foreground">Control de ventilacion</h2>
           <p className="text-muted-foreground">Lecturas, motor y marcha</p>
         </div>
       </div>

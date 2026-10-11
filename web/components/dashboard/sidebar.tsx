@@ -15,12 +15,12 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: 'home' as Page, label: 'Home', icon: Home },
+  { id: 'home' as Page, label: 'Ventilacion', icon: Home },
   { id: 'monitoreo' as Page, label: 'Monitoreo', icon: Activity },
   { id: 'configuraciones' as Page, label: 'Configuraciones', icon: Settings },
   { id: 'alertas' as Page, label: 'Alertas', icon: AlertTriangle },
   { id: 'datos-externos' as Page, label: 'Datos Externos', icon: Cloud },
-  { id: 'aire' as Page, label: 'Aire', icon: Snowflake },
+  { id: 'aire' as Page, label: 'Aire acondicionado', icon: Snowflake },
 ]
 
 export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0 }: SidebarProps) {
@@ -108,7 +108,7 @@ export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0
                     </span>
                   ) : null}
                 </span>
-                <span className="text-xs font-medium">{item.label}</span>
+                <span className="text-[10px] leading-tight font-medium text-center max-w-16">{item.label}</span>
               </button>
             </li>
           ))}

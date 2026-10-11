@@ -105,9 +105,9 @@ export function AirePage({ data }: { data: AVCData }) {
         <div>
           <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Snowflake className="w-6 h-6 text-sky-400" />
-            AIRE ACONDICIONADO
+            Aire acondicionado · Midea
           </h2>
-          <p className="text-sm text-muted-foreground">SALA / UNIDAD 01 · MIDEA</p>
+          <p className="text-sm text-muted-foreground">SALA / UNIDAD 01</p>
         </div>
         <p className="text-sm text-muted-foreground text-right">
           Control local
