@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { findBestSensorMatch, matchFuzzyVoiceCommand } from '@/lib/voice-fuzzy-match'
 import { SENSORES_DISPONIBLES } from '@/lib/voice-connectors'
 import { VOICE_COMMAND_GROUPS } from '@/lib/voice-command-menu'
+import { parseExtendedIntent, type ExtCommand } from '@/lib/voice-ext-parse'
 
 export type DashboardPage =
   | 'home'
@@ -49,6 +50,7 @@ export type VoiceIntent =
   | { type: 'TTS_STOP'; raw: string }
   | { type: 'TTS_FASTER'; raw: string }
   | { type: 'TTS_SLOWER'; raw: string }
+  | { type: 'EXT'; cmd: ExtCommand; raw: string }
   | { type: 'UNKNOWN'; raw: string }
 
 interface VoiceAssistantProps {
@@ -152,6 +154,12 @@ export function parseIntent(transcript: string): VoiceIntent {
     return { type: 'HIDE_COMMANDS', raw: transcript }
   }
 
+  // Biblioteca ampliada: historicos, fallas, perfiles por voz, temporizadores, aire, tareas, clima...
+  const ext = parseExtendedIntent(transcript)
+  if (ext) {
+    return { type: 'EXT', cmd: ext, raw: transcript }
+  }
+
   if (/(ir a|abrir|ve a|ir al|panel|inicio|pagina)/.test(t)) {
     if (/monitoreo/.test(t)) return { type: 'NAVIGATE', page: 'monitoreo', raw: transcript }
     if (/alerta/.test(t)) return { type: 'NAVIGATE', page: 'alertas', raw: transcript }
@@ -220,7 +228,7 @@ export function parseIntent(transcript: string): VoiceIntent {
     return { type: 'ALARMS_QUERY', raw: transcript }
   }
 
-  if (/(firebase|conexion).*(conectad|activo|hay)|esta conectad.*firebase|hay conexion con firebase/.test(t)) {
+  if (/(firebase|conexion).*(conectad|activo|hay)|esta conectad.*firebase|hay conexion con firebase|estado (de|del) firebase/.test(t)) {
     return { type: 'FIREBASE_STATUS', raw: transcript }
   }
 

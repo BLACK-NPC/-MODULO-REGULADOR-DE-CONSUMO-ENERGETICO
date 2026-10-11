@@ -227,8 +227,9 @@ export const PAGE_LABELS: Record<string, string> = {
   monitoreo: 'Monitoreo',
   configuraciones: 'Configuraciones',
   alertas: 'Alertas',
+  aire: 'Aire acondicionado',
   'datos-externos': 'Datos externos',
 }
 
 export const VOICE_HELP_SUMMARY =
-  'Puedes decir: hay alarmas, estado de Firebase, enciende el motor, pon el setpoint en 24, consumo actual, a que red estoy conectado, que hora es, clima en Cali, ir a monitoreo, y mas.'
+  'Puedes decir: hay alguna falla, consumo desde las 8 hasta las 12, cual fue el pico de calor hoy, programa un perfil, apaga en 30 minutos, enciende el motor, pon el setpoint en 24, clima en Cali, ir a monitoreo, y mas. Di ayuda de consumo, fallas o perfiles para ver mas ejemplos.'

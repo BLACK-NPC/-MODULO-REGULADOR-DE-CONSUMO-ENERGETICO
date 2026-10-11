@@ -83,6 +83,13 @@ export function AirePage({ data }: { data: AVCData }) {
     setListo(true)
   }, [])
 
+  // El asistente de voz cambia el aire guardando en localStorage y avisando con este evento.
+  useEffect(() => {
+    const recargar = () => setEstado(cargar())
+    window.addEventListener('ecopulse-aire-cambio', recargar)
+    return () => window.removeEventListener('ecopulse-aire-cambio', recargar)
+  }, [])
+
   useEffect(() => {
     if (!listo) return
     window.localStorage.setItem(CLAVE, JSON.stringify(estado))

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { HomePage } from '@/components/dashboard/home-page'
@@ -24,6 +24,7 @@ import { type HmiCommandResult } from '@/lib/hmi-command'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
 import { stopSpeaking, getSpeechRate, setSpeechRate, speak } from '@/lib/speech-synthesis'
+import { continueDialog, runExt, type ExtCtx } from '@/lib/voice-ext-run'
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
@@ -33,6 +34,22 @@ export default function Dashboard() {
   const [voiceSectionVisible, setVoiceSectionVisible] = useState(false)
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
+
+  // Contexto vivo para la biblioteca ampliada de voz (temporizadores y dialogos lo leen mas tarde).
+  const extCtxRef = useRef<ExtCtx | null>(null)
+  extCtxRef.current = {
+    data,
+    isDemo,
+    lastHeartbeatAt,
+    send: sendHmiCommand,
+    navigateAire: () => setCurrentPage('aire'),
+    openPane: (pane) => {
+      setCurrentPage('configuraciones')
+      // Configuraciones debe estar montada para oir el evento.
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane })), 350)
+    },
+  }
+  const getExtCtx = useCallback(() => extCtxRef.current as ExtCtx, [])
 
   const notifyHmiResult = useCallback((result: HmiCommandResult) => {
     if (!result.mensaje) return
@@ -58,6 +75,21 @@ export default function Dashboard() {
 
   const handleVoiceCommand = useCallback(async (intent: VoiceIntent, signal?: AbortSignal): Promise<string | null> => {
     if (signal?.aborted) return null
+
+    // Conversacion abierta (por ejemplo, programar un perfil): la respuesta se interpreta primero ahi.
+    const enDialogo = await continueDialog(intent.raw, intent.type === 'UNKNOWN', getExtCtx)
+    if (enDialogo !== undefined) {
+      if (signal?.aborted) return null
+      if (enDialogo) toast.info(enDialogo, { duration: 8000 })
+      return enDialogo
+    }
+
+    if (intent.type === 'EXT') {
+      const message = await runExt(intent.cmd, getExtCtx)
+      if (signal?.aborted) return null
+      toast.info(message, { duration: 8000 })
+      return message
+    }
 
     if (intent.type === 'GREET') {
       return `Hola. ${APP_NAME} listo. Di "ayuda" para escuchar los comandos disponibles.`
@@ -148,7 +180,7 @@ export default function Dashboard() {
     const fallback = 'Comando no reconocido. Di "ayuda" para ver opciones.'
     toast.error(fallback)
     return fallback
-  }, [data, sendHmiCommand, isDemo, lastHeartbeatAt])
+  }, [data, sendHmiCommand, isDemo, lastHeartbeatAt, getExtCtx])
 
   if (loading) {
     return (
@@ -194,7 +226,15 @@ export default function Dashboard() {
       case 'monitoreo':
         return <MonitoreoPage data={data} onUpdate={handleHmiUpdate} />
       case 'configuraciones':
-        return <ConfiguracionesPage data={data} onUpdate={handleHmiUpdate} isDemo={isDemo} lastHeartbeatAt={lastHeartbeatAt} />
+        return (
+          <ConfiguracionesPage
+            data={data}
+            onUpdate={handleHmiUpdate}
+            isDemo={isDemo}
+            lastHeartbeatAt={lastHeartbeatAt}
+            onNavigate={setCurrentPage}
+          />
+        )
       case 'alertas':
         return (
           <AlertasPage

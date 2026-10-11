@@ -212,13 +212,16 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
     function openPane(event: Event) {
       const pane = (event as CustomEvent<string>).detail
       setMedicionAbierta(pane === 'medicion')
-      setAutoAbierta(pane === 'automatizacion')
-      setServicioAbierta(false)
-      setEquipoAbierta(false)
+      setAutoAbierta(pane === 'automatizacion' || pane === 'perfiles')
+      if (pane === 'perfiles') setAutoVista('perfiles')
+      setServicioAbierta(pane === 'servicio')
+      if (pane === 'servicio') setServicioVista('panel')
+      setEquipoAbierta(pane === 'equipo')
+      if (pane === 'equipo') setEquipoVista('panel')
       setSistemaAbierta(pane === 'sistema')
       setConectAbierta(pane === 'conectividad')
-      setVozAbierta(false)
-      setAlertasAbierta(false)
+      setVozAbierta(pane === 'voz')
+      setAlertasAbierta(pane === 'alertas')
     }
     window.addEventListener('ecopulse-open-pane', openPane)
     return () => window.removeEventListener('ecopulse-open-pane', openPane)
