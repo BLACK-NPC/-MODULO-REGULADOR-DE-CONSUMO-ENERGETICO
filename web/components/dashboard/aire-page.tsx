@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, ChevronDown, Clock, Droplets, Fan, Minus, Moon, Plus, Power, Snowflake, Sun } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUpDown, ChevronDown, Clock, Droplets, Fan, Moon, Power, Snowflake, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
@@ -186,25 +186,7 @@ export function AirePage({ data }: { data: AVCData }) {
           </div>
 
           <div className="-mt-3 flex w-full flex-wrap items-center justify-center gap-3.5">
-            <div className="flex h-16 max-w-60 flex-1 basis-[170px] items-center overflow-hidden rounded-full border border-border bg-secondary">
-              <button
-                type="button"
-                aria-label="Bajar temperatura objetivo"
-                onClick={() => poner({ objetivo: Math.max(MIN, estado.objetivo - 1) })}
-                className="flex h-full flex-1 items-center justify-center text-sky-300 hover:bg-sky-500/10"
-              >
-                <Minus className="h-6 w-6" strokeWidth={2.6} />
-              </button>
-              <span className="h-7 w-px bg-border" />
-              <button
-                type="button"
-                aria-label="Subir temperatura objetivo"
-                onClick={() => poner({ objetivo: Math.min(MAX, estado.objetivo + 1) })}
-                className="flex h-full flex-1 items-center justify-center text-sky-300 hover:bg-sky-500/10"
-              >
-                <Plus className="h-6 w-6" strokeWidth={2.6} />
-              </button>
-            </div>
+            <Ruleta valor={estado.objetivo} onCambio={(objetivo) => poner({ objetivo })} />
             <button
               type="button"
               onClick={() => poner({ encendido: !estado.encendido })}
@@ -333,6 +315,131 @@ export function AirePage({ data }: { data: AVCData }) {
             El perfil Coolix no cubre todos los modelos de Midea. La pagina guarda la orden; el LED infrarrojo la transmite cuando la ESP32 tenga este protocolo.
           </p>
         </section>
+      </div>
+    </div>
+  )
+}
+
+const VALORES = Array.from({ length: MAX - MIN + 1 }, (_, i) => MIN + i)
+
+function Ruleta({ valor, onCambio }: { valor: number; onCambio: (valor: number) => void }) {
+  const caja = useRef<HTMLDivElement>(null)
+  const arrastre = useRef<{ x: number; scroll: number; movido: boolean } | null>(null)
+
+  function ancho() {
+    return (caja.current?.clientWidth ?? 0) / 3
+  }
+
+  function indiceActual() {
+    const w = ancho()
+    if (!w || !caja.current) return valor - MIN
+    return Math.min(VALORES.length - 1, Math.max(0, Math.round(caja.current.scrollLeft / w)))
+  }
+
+  useEffect(() => {
+    const el = caja.current
+    const w = ancho()
+    if (!el || !w) return
+    if (indiceActual() !== valor - MIN) el.scrollTo({ left: (valor - MIN) * w, behavior: 'auto' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor])
+
+  function alDesplazar() {
+    const nuevo = MIN + indiceActual()
+    if (nuevo !== valor) onCambio(nuevo)
+  }
+
+  function ir(nuevo: number) {
+    const el = caja.current
+    const w = ancho()
+    const limitado = Math.min(MAX, Math.max(MIN, nuevo))
+    if (el && w) el.scrollTo({ left: (limitado - MIN) * w, behavior: 'smooth' })
+    onCambio(limitado)
+  }
+
+  function alPresionar(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== 'mouse' || !caja.current) return
+    arrastre.current = { x: e.clientX, scroll: caja.current.scrollLeft, movido: false }
+    caja.current.setPointerCapture(e.pointerId)
+    caja.current.style.scrollSnapType = 'none'
+  }
+
+  function alMover(e: React.PointerEvent<HTMLDivElement>) {
+    const a = arrastre.current
+    if (!a || !caja.current) return
+    const dx = e.clientX - a.x
+    if (Math.abs(dx) > 4) a.movido = true
+    caja.current.scrollLeft = a.scroll - dx
+  }
+
+  function alSoltar(e: React.PointerEvent<HTMLDivElement>) {
+    const el = caja.current
+    if (!arrastre.current || !el) return
+    const w = ancho()
+    const idx = indiceActual()
+    el.style.scrollSnapType = ''
+    if (!arrastre.current.movido && e.type === 'pointerup' && w) {
+      const casilla = Math.floor((e.clientX - el.getBoundingClientRect().left) / w)
+      ir(MIN + idx + casilla - 1)
+    } else if (w) {
+      el.scrollTo({ left: idx * w, behavior: 'smooth' })
+    }
+    window.setTimeout(() => {
+      arrastre.current = null
+    }, 0)
+  }
+
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label="Temperatura objetivo"
+      aria-valuemin={MIN}
+      aria-valuemax={MAX}
+      aria-valuenow={valor}
+      aria-valuetext={`${valor} grados`}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+          e.preventDefault()
+          ir(valor - 1)
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          ir(valor + 1)
+        }
+      }}
+      className="relative h-16 max-w-72 flex-1 basis-[220px] overflow-hidden rounded-full border border-border bg-secondary outline-none focus-visible:border-sky-400 focus-visible:ring-2 focus-visible:ring-sky-400/40"
+    >
+      <div className="pointer-events-none absolute inset-y-2 left-1/3 w-1/3 rounded-full border border-sky-400/60 bg-sky-500/10" />
+      <div
+        ref={caja}
+        onScroll={alDesplazar}
+        onPointerDown={alPresionar}
+        onPointerMove={alMover}
+        onPointerUp={alSoltar}
+        onPointerCancel={alSoltar}
+        className="flex h-full cursor-grab touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain select-none [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="w-1/3 flex-none" aria-hidden="true" />
+        {VALORES.map((n) => {
+          const distancia = Math.abs(n - valor)
+          return (
+            <button
+              key={n}
+              type="button"
+              tabIndex={-1}
+              onClick={() => {
+                if (!arrastre.current?.movido) ir(n)
+              }}
+              className={cn(
+                'flex w-1/3 flex-none snap-center items-center justify-center font-bold transition-all',
+                distancia === 0 ? 'text-3xl text-sky-300' : distancia === 1 ? 'text-xl text-muted-foreground' : 'text-base text-muted-foreground/30',
+              )}
+            >
+              {n}
+            </button>
+          )
+        })}
+        <div className="w-1/3 flex-none" aria-hidden="true" />
       </div>
     </div>
   )
