@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Mic, Loader2, Volume2, CheckCircle2, Waves, ChevronDown, ChevronUp } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Volume2, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useVoiceRecognition } from '@/hooks/use-voice-recognition'
 import { findBestSensorMatch, matchFuzzyVoiceCommand } from '@/lib/voice-fuzzy-match'
 import { SENSORES_DISPONIBLES } from '@/lib/voice-connectors'
 import { VOICE_COMMAND_GROUPS } from '@/lib/voice-command-menu'
@@ -324,18 +322,8 @@ export function parseIntent(transcript: string): VoiceIntent {
   return { type: 'UNKNOWN', raw: transcript }
 }
 
-export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded = false }: VoiceAssistantProps) {
+export function VoiceAssistant({ className, embedded = false }: VoiceAssistantProps) {
   const [commandsOpen, setCommandsOpen] = useState(false)
-  const {
-    status,
-    transcript,
-    responseText,
-    errorMsg,
-    startListening,
-    isListening,
-    isProcessing,
-    isUnsupported,
-  } = useVoiceRecognition({ lang, onCommand })
 
   return (
     <div
@@ -358,55 +346,6 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
           </div>
         </div>
       )}
-
-      <Button
-        onClick={startListening}
-        disabled={isUnsupported || isProcessing}
-        className={cn(
-          'h-14 w-full text-base font-semibold transition-colors',
-          isListening
-            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-            : 'bg-primary text-primary-foreground hover:bg-primary/90'
-        )}
-        aria-pressed={isListening}
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            Procesando...
-          </>
-        ) : isListening ? (
-          <>
-            <Waves className="mr-2 h-5 w-5 animate-pulse" />
-            Escuchando...
-          </>
-        ) : (
-          <>
-            <Mic className="mr-2 h-5 w-5" />
-            Hablar
-          </>
-        )}
-      </Button>
-
-      <div className="flex items-center gap-2 text-sm" aria-live="polite">
-        <span
-          className={cn(
-            'h-2.5 w-2.5 rounded-full',
-            isListening && 'animate-pulse bg-emerald-500',
-            isProcessing && 'animate-pulse bg-accent',
-            status === 'idle' && 'bg-muted-foreground/40',
-            status === 'error' && 'bg-destructive',
-            isUnsupported && 'bg-muted-foreground/40'
-          )}
-        />
-        <span className="text-muted-foreground">
-          {isListening && 'Escuchando...'}
-          {isProcessing && 'Procesando...'}
-          {status === 'idle' && !responseText && 'Listo'}
-          {status === 'error' && (errorMsg || 'Error')}
-          {isUnsupported && 'Tu navegador no soporta reconocimiento de voz'}
-        </span>
-      </div>
 
       <button
         type="button"
@@ -451,22 +390,6 @@ export function VoiceAssistant({ onCommand, lang = 'es-CO', className, embedded 
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {transcript && (
-        <div className="rounded-lg bg-secondary/50 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tu voz</p>
-          <p className="mt-1 text-sm">{transcript}</p>
-        </div>
-      )}
-
-      {responseText && (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3">
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
-            <p className="text-sm">{responseText}</p>
-          </div>
         </div>
       )}
     </div>
