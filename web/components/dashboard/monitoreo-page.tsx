@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Thermometer, Droplets, Zap } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -88,23 +88,22 @@ export function MonitoreoPage({ data, onUpdate }: MonitoreoPageProps) {
   const stats = resumen(puntos.map((punto) => punto[foco]))
 
   const lecturas = [
-    { id: 'potencia' as const, titulo: 'Potencia', valor: `${data.potencia} W`, color: COLORES.potencia },
-    { id: 'temperatura' as const, titulo: 'Temperatura', valor: `${data.temperatura} C`, color: COLORES.temperatura },
-    { id: 'humedad' as const, titulo: 'Humedad', valor: `${data.humedad} %`, color: COLORES.humedad },
+    { id: 'potencia' as const, titulo: 'POTENCIA', valor: `${data.potencia} W`, color: COLORES.potencia, icono: Zap, fondo: 'bg-emerald-100', tinta: 'text-emerald-600' },
+    { id: 'temperatura' as const, titulo: 'TEMPERATURA', valor: `${data.temperatura} C`, color: COLORES.temperatura, icono: Thermometer, fondo: 'bg-blue-100', tinta: 'text-blue-600' },
+    { id: 'humedad' as const, titulo: 'HUMEDAD', valor: `${data.humedad} %`, color: COLORES.humedad, icono: Droplets, fondo: 'bg-sky-100', tinta: 'text-sky-600' },
   ]
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Monitoreo</h2>
-          <p className="text-muted-foreground">Misma distribucion del HMI: dias, lecturas y grafica</p>
+          <h2 className="text-2xl font-bold text-foreground">MONITOREO</h2>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant={vista === 'ahora' ? 'default' : 'outline'} onClick={() => setVista('ahora')}>
+          <Button type="button" onClick={() => setVista(vista === 'ahora' ? 'combinado' : 'ahora')} className={cn('h-9', vista === 'ahora' ? 'bg-foreground text-background' : 'bg-green-600 hover:bg-green-700 text-white')}>
             AHORA
           </Button>
-          <Button type="button" variant={vista === 'log' ? 'default' : 'outline'} onClick={() => setVista('log')}>
+          <Button type="button" onClick={() => setVista(vista === 'log' ? 'combinado' : 'log')} className={cn('h-9', vista === 'log' ? 'bg-foreground text-background' : 'bg-green-600 hover:bg-green-700 text-white')}>
             LOG
           </Button>
         </div>
@@ -138,23 +137,19 @@ export function MonitoreoPage({ data, onUpdate }: MonitoreoPageProps) {
                 setVista('detalle')
               }}
               className={cn(
-                'w-full rounded-md border bg-card px-3 py-2 text-left',
+                'w-full rounded-md border bg-card px-3 py-2 text-left flex items-center gap-3',
                 foco === lectura.id && vista === 'detalle' ? 'border-foreground' : 'border-border',
               )}
             >
-              <p className="text-[11px] text-muted-foreground">{lectura.titulo}</p>
-              <p className="text-sm font-semibold" style={{ color: lectura.color }}>{lectura.valor}</p>
+              <span className={cn('w-8 h-8 rounded-full flex items-center justify-center', lectura.fondo)}>
+                <lectura.icono className={cn('w-4 h-4', lectura.tinta)} />
+              </span>
+              <span>
+                <p className="text-[11px] text-muted-foreground">{lectura.titulo}</p>
+                <p className="text-sm font-semibold" style={{ color: lectura.color }}>{lectura.valor}</p>
+              </span>
             </button>
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onUpdate(`historico/${selectedDay}`, null)}
-            className="w-full bg-card border-border"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Borrar {selectedDay}
-          </Button>
         </div>
 
         <Card className="bg-card border-border">
@@ -260,6 +255,15 @@ export function MonitoreoPage({ data, onUpdate }: MonitoreoPageProps) {
           </CardContent>
         </Card>
       </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onUpdate(`historico/${selectedDay}`, null)}
+        className="bg-card border-border"
+      >
+        <Trash2 className="w-4 h-4 mr-2" />
+        Borrar {selectedDay}
+      </Button>
     </div>
   )
 }
@@ -299,11 +303,12 @@ function Ahora({
     { nombre: 'Temperatura', valor: `${data.temperatura} C`, anterior: puntos.at(-2)?.temperatura, actual: puntos.at(-1)?.temperatura, unidad: 'C' },
     { nombre: 'Humedad', valor: `${data.humedad} %`, anterior: puntos.at(-2)?.humedad, actual: puntos.at(-1)?.humedad, unidad: '%' },
     { nombre: 'Potencia', valor: `${data.potencia} W`, anterior: puntos.at(-2)?.potencia, actual: puntos.at(-1)?.potencia, unidad: 'W' },
-    { nombre: 'Motor', valor: data.estado === 'running' ? 'En marcha' : 'Parado', anterior: null, actual: null, unidad: '' },
+    { nombre: 'Ventilador', valor: data.estado === 'running' ? 'En marcha' : 'Parado', anterior: null, actual: null, unidad: '' },
   ]
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-foreground">MONITOREO - AHORA</p>
+      <div className="grid grid-cols-2 gap-2">
       {filas.map((fila) => {
         const tendencia =
           fila.anterior === null || fila.anterior === undefined || fila.actual === null || fila.actual === undefined
@@ -319,6 +324,7 @@ function Ahora({
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
