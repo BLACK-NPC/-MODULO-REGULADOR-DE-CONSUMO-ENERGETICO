@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Home, Activity, Settings, AlertTriangle, Cloud, Snowflake } from 'lucide-react'
+import { Fan, Activity, Settings, AlertTriangle, Cloud, Snowflake } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 
@@ -15,7 +15,7 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: 'home' as Page, label: 'Ventilacion', icon: Home },
+  { id: 'home' as Page, label: 'Ventilacion', icon: Fan },
   { id: 'aire' as Page, label: 'Aire acondicionado', icon: Snowflake },
   { id: 'monitoreo' as Page, label: 'Monitoreo', icon: Activity },
   { id: 'configuraciones' as Page, label: 'Configuraciones', icon: Settings },
