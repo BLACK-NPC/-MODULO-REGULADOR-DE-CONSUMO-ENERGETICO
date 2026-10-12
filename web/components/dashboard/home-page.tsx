@@ -187,7 +187,9 @@ export function HomePage({
               </button>
             </div>
             <div className="flex flex-col gap-2 px-1">
-              <p className="text-xs text-muted-foreground">Temperatura objetivo</p>
+              <p className="text-xs text-muted-foreground">
+                Temperatura objetivo <span className="font-semibold text-foreground">{objetivo} °C</span>
+              </p>
               <Ruleta min={minObjetivo} max={maxObjetivo} valor={objetivo} onCambio={cambiarObjetivo} />
             </div>
             {manual ? (
