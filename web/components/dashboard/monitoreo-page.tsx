@@ -229,9 +229,11 @@ function hora12(hora: number, minuto: number) {
 type Escala = 'auto' | 'segundos' | 'minutos' | 'horas'
 type Muestra = { t: number; temperatura: number | null; humedad: number | null; potencia: number | null }
 type Vivo = { segundos: Muestra[]; minutos: Muestra[] }
-type PuntoGrafica = { etiqueta: string; temperatura: number | null; humedad: number | null; potencia: number | null }
+type PuntoGrafica = { x: number; etiqueta: string; temperatura: number | null; humedad: number | null; potencia: number | null }
 
 const CLAVE_VIVO = 'ecopulse-monitoreo-vivo'
+const CLAVE_ENCENDIDO = 'ecopulse-monitoreo-encendido'
+const SEGUNDOS_GUARDADOS = 20 * 60_000
 
 function cargarVivo(): Vivo {
   if (typeof window === 'undefined') return { segundos: [], minutos: [] }
@@ -244,26 +246,38 @@ function cargarVivo(): Vivo {
   }
 }
 
-function guardarMuestra(actual: Vivo, muestra: Muestra): Vivo {
-  const segundos = [...actual.segundos.filter((item) => muestra.t - item.t < 120_000), muestra]
+function guardarMuestra(actual: Vivo, muestra: Muestra, persistir: boolean): Vivo {
+  const segundos = [...actual.segundos.filter((item) => muestra.t - item.t < SEGUNDOS_GUARDADOS), muestra]
   const minutos = actual.minutos.filter((item) => muestra.t - item.t < 48 * 3_600_000)
   const minuto = Math.floor(muestra.t / 60_000)
   const ultimo = minutos[minutos.length - 1]
   if (ultimo && Math.floor(ultimo.t / 60_000) === minuto) minutos[minutos.length - 1] = muestra
   else minutos.push(muestra)
   const siguiente = { segundos, minutos }
-  try {
-    window.localStorage.setItem(CLAVE_VIVO, JSON.stringify(siguiente))
-  } catch {
-    /* el navegador puede negar espacio; la grafica sigue en memoria */
+  if (persistir) {
+    try {
+      window.localStorage.setItem(CLAVE_VIVO, JSON.stringify(siguiente))
+    } catch {
+      /* el navegador puede negar espacio; la grafica sigue en memoria */
+    }
   }
   return siguiente
 }
 
-function marcas(etiquetas: string[]) {
-  if (etiquetas.length <= 6) return [...new Set(etiquetas)]
-  const pasos = 5
-  return [...new Set(Array.from({ length: pasos }, (_, index) => etiquetas[Math.round((index * (etiquetas.length - 1)) / (pasos - 1))]))]
+function formatoTiempo(segundos: number, total: number) {
+  const valor = Math.max(0, Math.round(segundos))
+  if (total < 90) return `${valor}s`
+  const minutos = Math.floor(valor / 60)
+  const resto = valor % 60
+  if (total < 3600) return resto === 0 ? `${minutos} min` : `${minutos}:${String(resto).padStart(2, '0')}`
+  const horas = Math.floor(valor / 3600)
+  const min = Math.round((valor % 3600) / 60)
+  return min === 0 ? `${horas}h` : `${horas}h ${min}m`
+}
+
+function ticksTiempo(duracion: number) {
+  if (duracion <= 0) return [0]
+  return [...new Set(Array.from({ length: 6 }, (_, index) => Math.round((duracion * index) / 5)))]
 }
 
 function dominioFino(valores: Array<number | null>, fijo: [number, number], fino: boolean): [number, number] {
@@ -272,10 +286,10 @@ function dominioFino(valores: Array<number | null>, fijo: [number, number], fino
   if (numeros.length === 0) return fijo
   let min = Math.min(...numeros)
   let max = Math.max(...numeros)
-  if (max - min < 1) {
+  if (max - min < 0.4) {
     const medio = (max + min) / 2
-    min = medio - 0.5
-    max = medio + 0.5
+    min = medio - 0.2
+    max = medio + 0.2
   } else {
     const margen = (max - min) * 0.15
     min -= margen
@@ -284,95 +298,100 @@ function dominioFino(valores: Array<number | null>, fijo: [number, number], fino
   return [Math.floor(min * 10) / 10, Math.ceil(max * 10) / 10]
 }
 
-function resolucionEfectiva(escala: Escala, sesion: number, ahora: number, esHoy: boolean, horaPedida: number | null, vivo: Vivo): 'segundos' | 'minutos' | 'horas' {
-  if (!esHoy) return 'horas'
-  if (escala !== 'auto') return escala
-  if (horaPedida !== null) {
-    const inicio = new Date(ahora)
-    inicio.setHours(horaPedida, 0, 0, 0)
-    const desde = inicio.getTime()
-    const hasta = Math.min(ahora, desde + 3_600_000 - 1)
-    const segundos = vivo.segundos.filter((item) => item.t >= desde && item.t <= hasta)
-    const minutos = vivo.minutos.filter((item) => item.t >= desde && item.t <= hasta)
-    const primero = segundos[0]?.t ?? minutos[0]?.t
-    if (primero === undefined) return 'horas'
-    if (segundos.length > 0 && ahora - primero < 90_000) return 'segundos'
-    return 'minutos'
+function muestrasEn(vivo: Vivo, desde: number, hasta: number) {
+  const finos = vivo.segundos.filter((item) => item.t >= desde && item.t <= hasta)
+  const corte = hasta - SEGUNDOS_GUARDADOS
+  const gruesos = vivo.minutos.filter((item) => item.t >= desde && item.t < corte)
+  const unidos = [...gruesos, ...finos].sort((a, b) => a.t - b.t)
+  if (unidos.length <= 900) return unidos
+  const inicio = unidos[0].t
+  const span = Math.max(1, unidos[unidos.length - 1].t - inicio)
+  const cubos = new Map<number, Muestra>()
+  for (const item of unidos) {
+    cubos.set(Math.round(((item.t - inicio) / span) * 899), item)
   }
-  const transcurrido = ahora - sesion
-  if (transcurrido < 90_000) return 'segundos'
-  if (transcurrido < 90 * 60_000) return 'minutos'
-  return 'horas'
+  return [...cubos.entries()].sort((a, b) => a[0] - b[0]).map((entrada) => entrada[1])
 }
 
 function serieTiempo(
-  resolucion: 'segundos' | 'minutos' | 'horas',
+  escala: Escala,
   vivo: Vivo,
   puntosHora: Punto[],
   esHoy: boolean,
   ahora: number,
-  sesion: number,
+  encendido: number | null,
   horaPedida: number | null,
-  anclarSesion: boolean,
-): { datos: PuntoGrafica[]; ticks: string[]; nota: string } {
-  if (resolucion === 'horas' || !esHoy) {
+  ultima: Muestra,
+): { datos: PuntoGrafica[]; ticks: number[]; formato: (valor: number) => string; nota: string; marca10: number | null } {
+  const porHoras = !esHoy || escala === 'horas'
+  if (porHoras) {
     const fin = esHoy ? new Date(ahora).getHours() : 23
     const datos = puntosHora.filter((punto) => punto.hora <= fin).map((punto) => ({
+      x: punto.hora,
       etiqueta: String(punto.hora),
       temperatura: punto.temperatura,
       humedad: punto.humedad,
       potencia: punto.potencia,
     }))
-    const nota = !esHoy
-      ? 'Dia guardado por horas'
-      : `Horas 0 a ${fin}. Lo ya transcurrido ocupa toda la grafica.`
-    return { datos, ticks: marcas(datos.map((punto) => punto.etiqueta)), nota }
+    const ticks = datos.length <= 6 ? datos.map((punto) => punto.x) : ticksTiempo(fin)
+    return {
+      datos,
+      ticks,
+      formato: (valor) => String(Math.round(valor)),
+      nota: esHoy ? `De 0 a ${fin}. Esas horas ocupan todo el ancho.` : 'Dia guardado por horas, de punta a punta.',
+      marca10: null,
+    }
   }
 
   const inicioHora = horaPedida === null ? null : new Date(ahora)
-  if (inicioHora && horaPedida !== null) {
-    inicioHora.setHours(horaPedida, 0, 0, 0)
-  }
-  const desdeHora = inicioHora ? inicioHora.getTime() : null
-  const hastaHora = desdeHora === null ? null : Math.min(ahora, desdeHora + 3_600_000 - 1)
-
-  if (resolucion === 'segundos') {
-    const base = vivo.segundos.filter((item) => {
-      if (desdeHora === null || hastaHora === null) return item.t >= (anclarSesion ? sesion : ahora - 60_000)
-      return item.t >= desdeHora && item.t <= hastaHora
-    })
-    const datos = base.map((item) => {
-      const fecha = new Date(item.t)
-      return {
-        etiqueta: `${fecha.getMinutes()}:${String(fecha.getSeconds()).padStart(2, '0')}`,
-        temperatura: item.temperatura,
-        humedad: item.humedad,
-        potencia: item.potencia,
-      }
-    })
-    const nota = datos.length === 0
-      ? 'Aun no hay segundos de esa hora. El detalle fino empieza cuando la pagina esta abierta.'
-      : 'Segundos. Cada punto es la lectura en vivo.'
-    return { datos, ticks: marcas(datos.map((punto) => punto.etiqueta)), nota }
+  if (inicioHora && horaPedida !== null) inicioHora.setHours(horaPedida, 0, 0, 0)
+  const tope = escala === 'segundos' ? 60_000 : escala === 'minutos' ? 3_600_000 : null
+  const desdeTope = tope === null ? 0 : ahora - tope
+  const ancla = inicioHora
+    ? inicioHora.getTime()
+    : tope === null
+      ? encendido ?? vivo.segundos[0]?.t ?? ahora
+      : 0
+  const desde = Math.max(desdeTope, ancla)
+  const hasta = inicioHora ? Math.min(ahora, inicioHora.getTime() + 3_600_000 - 1) : ahora
+  const base = muestrasEn(vivo, desde, hasta)
+  if (base.length === 0) {
+    return {
+      datos: [
+        { x: 0, etiqueta: '0s', temperatura: ultima.temperatura, humedad: ultima.humedad, potencia: ultima.potencia },
+        { x: 1, etiqueta: '1s', temperatura: ultima.temperatura, humedad: ultima.humedad, potencia: ultima.potencia },
+      ],
+      ticks: [0, 1],
+      formato: (valor) => `${Math.round(valor)}s`,
+      nota: 'La lectura actual ya cruza todo el panel. El detalle aparece en cuanto entra el siguiente segundo.',
+      marca10: null,
+    }
   }
 
-  const desdeMin = horaPedida === null ? (anclarSesion ? sesion : ahora - 3_600_000) : desdeHora ?? sesion
-  const hastaMin = horaPedida === null ? ahora : hastaHora ?? ahora
-  const datos = vivo.minutos
-    .filter((item) => item.t >= desdeMin && item.t <= hastaMin)
-    .map((item) => {
-      const fecha = new Date(item.t)
-      return {
-        etiqueta: `${fecha.getHours()}:${String(fecha.getMinutes()).padStart(2, '0')}`,
-        temperatura: item.temperatura,
-        humedad: item.humedad,
-        potencia: item.potencia,
-      }
-    })
-  const nota = datos.length === 0
-    ? 'Esa hora no tiene minutos guardados aqui. El equipo solo conserva el dato por hora.'
-    : 'Minutos. Lo registrado en este rango ocupa toda la grafica.'
-  return { datos, ticks: marcas(datos.map((punto) => punto.etiqueta)), nota }
+  const origen = base[0].t
+  const duracion = Math.max(1, (hasta - origen) / 1000)
+  const datos = base.map((item) => {
+    const x = (item.t - origen) / 1000
+    return {
+      x,
+      etiqueta: formatoTiempo(x, duracion),
+      temperatura: item.temperatura,
+      humedad: item.humedad,
+      potencia: item.potencia,
+    }
+  })
+  const cola = datos[datos.length - 1]
+  if (cola.x < duracion) {
+    datos.push({ ...cola, x: duracion, etiqueta: formatoTiempo(duracion, duracion) })
+  }
+  const texto = formatoTiempo(duracion, duracion)
+  return {
+    datos,
+    ticks: ticksTiempo(duracion),
+    formato: (valor) => formatoTiempo(valor, duracion),
+    nota: `Llevas ${texto}. La linea va del inicio al final del panel. A los 10 min el eje marca 10 min.`,
+    marca10: duracion >= 600 ? 600 : null,
+  }
 }
 
 export function MonitoreoPage({ data }: MonitoreoPageProps) {
@@ -407,9 +426,14 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
   const [ahora, setAhora] = useState(() => Date.now())
   const [vivo, setVivo] = useState<Vivo>(cargarVivo)
   const ultimoDia = useRef<{ key: string; t: number } | null>(null)
-  const sesion = useRef(Date.now())
   const viva = useRef(data)
+  const pulso = useRef(0)
   viva.current = data
+  const [desdeEncendido, setDesdeEncendido] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const guardado = Number(window.localStorage.getItem(CLAVE_ENCENDIDO))
+    return Number.isFinite(guardado) && guardado > 0 ? guardado : null
+  })
 
   function elegirDia(key: string) {
     const ahora = Date.now()
@@ -427,17 +451,20 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
 
   const puntos = useMemo(() => puntosDelDia(data.historico?.[selectedDay]), [data.historico, selectedDay])
   const esHoy = selectedDay === hoy
-  const resolucion = resolucionEfectiva(escala, sesion.current, ahora, esHoy, horaMarcada, vivo)
   const grafica = useMemo(
-    () => serieTiempo(resolucion, vivo, puntos, esHoy, ahora, sesion.current, horaMarcada, escala === 'auto'),
-    [resolucion, vivo, puntos, esHoy, ahora, horaMarcada, escala],
+    () => serieTiempo(escala, vivo, puntos, esHoy, ahora, desdeEncendido, horaMarcada, {
+      t: ahora,
+      temperatura: data.config.sensorTemperatura ? data.temperatura : null,
+      humedad: data.config.sensorHumedad ? data.humedad : null,
+      potencia: data.config.sensorPotencia ? data.potencia : null,
+    }),
+    [escala, vivo, puntos, esHoy, ahora, desdeEncendido, horaMarcada, data.config.sensorTemperatura, data.config.sensorHumedad, data.config.sensorPotencia, data.temperatura, data.humedad, data.potencia],
   )
-  const fino = resolucion !== 'horas' && esHoy && grafica.datos.length > 0
-  const dominioClima = dominioFino(grafica.datos.map((punto) => punto.temperatura), [0, 40], fino)
+  const dominioClima = dominioFino(grafica.datos.map((punto) => punto.temperatura), [0, 40], true)
   const dominioEscala = dominioFino(
     grafica.datos.flatMap((punto) => [punto.humedad, punto.potencia]),
     [0, 100],
-    fino,
+    true,
   )
   const enCombinada = ORDEN.filter((metrica) => visible[metrica])
   const paneles = ORDEN.filter((metrica) => separada[metrica] && visible[metrica])
@@ -467,12 +494,23 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
       const actual = viva.current
       const t = Date.now()
       setAhora(t)
+      setDesdeEncendido((previo) => {
+        if (actual.estado !== 'running') {
+          if (previo !== null) window.localStorage.removeItem(CLAVE_ENCENDIDO)
+          return null
+        }
+        if (previo !== null) return previo
+        window.localStorage.setItem(CLAVE_ENCENDIDO, String(t))
+        return t
+      })
+      pulso.current += 1
+      const persistir = pulso.current % 5 === 0
       setVivo((previo) => guardarMuestra(previo, {
         t,
         temperatura: actual.config.sensorTemperatura ? actual.temperatura : null,
         humedad: actual.config.sensorHumedad ? actual.humedad : null,
         potencia: actual.config.sensorPotencia ? actual.potencia : null,
-      }))
+      }, persistir))
     }, 1000)
     return () => window.clearInterval(id)
   }, [])
@@ -622,10 +660,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
           <button
             key={clave}
             type="button"
-            onClick={() => {
-              if (clave === 'auto') sesion.current = Date.now()
-              setEscala(clave)
-            }}
+            onClick={() => setEscala(clave)}
             className={cn(
               'h-8 flex-1 rounded-full border px-2 text-xs font-medium',
               escala === clave ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground',
@@ -636,7 +671,6 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
         ))}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        {escala === 'auto' ? `Automatico · ${resolucion}. ` : ''}
         {grafica.nota}
       </p>
 
@@ -662,15 +696,19 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                 <LineChart data={grafica.datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="#333" vertical={false} />
                   <XAxis
-                    dataKey="etiqueta"
+                    type="number"
+                    dataKey="x"
+                    domain={['dataMin', 'dataMax']}
                     stroke="#666"
                     ticks={grafica.ticks}
-                    interval={0}
+                    tickFormatter={grafica.formato}
+                    padding={{ left: 0, right: 0 }}
                   />
-                  <YAxis yAxisId="clima" stroke={COLORES.temperatura} domain={dominioClima} ticks={fino ? undefined : [0, 10, 20, 30, 40]} width={36} hide={!enCombinada.includes('temperatura')} />
+                  <YAxis yAxisId="clima" stroke={COLORES.temperatura} domain={dominioClima} width={36} hide={!enCombinada.includes('temperatura')} />
                   <YAxis yAxisId="escala" orientation="right" stroke={enCombinada.includes('potencia') ? COLORES.potencia : COLORES.humedad} domain={dominioEscala} width={36} hide={!enCombinada.includes('humedad') && !enCombinada.includes('potencia')} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
-                  {horaMarcada !== null && resolucion === 'horas' ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
+                  <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} labelFormatter={(valor) => grafica.formato(Number(valor))} />
+                  {grafica.marca10 !== null ? <ReferenceLine x={grafica.marca10} stroke="#c8c8c8" strokeDasharray="3 3" label={{ value: '10 min', fill: '#c8c8c8', fontSize: 10, position: 'insideTop' }} /> : null}
+                  {horaMarcada !== null && (escala === 'horas' || !esHoy) ? <ReferenceLine x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
                   {enCombinada.includes('potencia') ? (
                     <Line yAxisId="escala" type="monotone" dataKey="potencia" name="W" stroke={COLORES.potencia} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
@@ -697,10 +735,10 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
           puntos={puntos}
           datos={grafica.datos}
           ticks={grafica.ticks}
-          fino={fino}
+          formato={grafica.formato}
           horas={rangos[metrica]}
           esHoy={esHoy}
-          resolucion={resolucion}
+          porHoras={escala === 'horas' || !esHoy}
           valor={valorPanel(metrica)}
           abierto={detalle[metrica]}
           tempViva={data.temperatura}
@@ -821,10 +859,10 @@ function PanelSeparado({
   puntos,
   datos,
   ticks,
-  fino,
+  formato,
   horas,
   esHoy,
-  resolucion,
+  porHoras,
   valor,
   abierto,
   tempViva,
@@ -836,11 +874,11 @@ function PanelSeparado({
   metrica: Metrica
   puntos: Punto[]
   datos: PuntoGrafica[]
-  ticks: string[]
-  fino: boolean
+  ticks: number[]
+  formato: (valor: number) => string
   horas: number
   esHoy: boolean
-  resolucion: 'segundos' | 'minutos' | 'horas'
+  porHoras: boolean
   valor: string
   abierto: boolean
   tempViva: number
@@ -851,12 +889,19 @@ function PanelSeparado({
 }) {
   const titulo = metrica === 'temperatura' ? 'TEMPERATURA' : metrica === 'humedad' ? 'HUMEDAD' : 'POTENCIA'
   const unidad = metrica === 'temperatura' ? '°C' : metrica === 'humedad' ? '%' : 'W'
-  const porHoras = resolucion === 'horas' || !esHoy
-  const serie = porHoras ? ventana(puntos, horas, esHoy) : datos
+  const serie = porHoras
+    ? ventana(puntos, horas, esHoy).map((punto) => ({
+      x: punto.hora,
+      etiqueta: String(punto.hora),
+      temperatura: punto.temperatura,
+      humedad: punto.humedad,
+      potencia: punto.potencia,
+    }))
+    : datos
   const dominio = dominioFino(
     serie.map((punto) => punto[metrica]),
     metrica === 'temperatura' ? [0, 40] : [0, 100],
-    fino && !porHoras,
+    true,
   )
   const listaPicos = picos(puntos, metrica)
   const listaAlertas = alertas(puntos, metrica)
@@ -886,10 +931,10 @@ function PanelSeparado({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={serie} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#333" vertical={false} />
-              <XAxis dataKey="etiqueta" stroke="#666" ticks={porHoras ? undefined : ticks} interval={porHoras ? undefined : 0} />
+              <XAxis type="number" dataKey="x" domain={['dataMin', 'dataMax']} stroke="#666" ticks={porHoras ? undefined : ticks} tickFormatter={formato} padding={{ left: 0, right: 0 }} />
               <YAxis stroke={COLORES[metrica]} width={40} domain={dominio} unit={unidad} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
-              {horaMarcada !== null && porHoras ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
+              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} labelFormatter={(valor) => formato(Number(valor))} />
+              {horaMarcada !== null && porHoras ? <ReferenceLine x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
               <Line type="monotone" dataKey={metrica} name={titulo} stroke={COLORES[metrica]} strokeWidth={2} dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
