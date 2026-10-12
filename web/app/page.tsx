@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { HomePage } from '@/components/dashboard/home-page'
@@ -32,6 +32,9 @@ const DEFAULT_WEATHER_CITY = 'Cali'
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [currentPage])
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
 

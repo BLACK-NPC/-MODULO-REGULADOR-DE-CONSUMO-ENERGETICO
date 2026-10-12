@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Droplets,
   Thermometer,
@@ -214,6 +214,21 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   useEffect(() => setBeepMs(data.sistema.beepMs), [data.sistema.beepMs])
   useEffect(() => setBeepDuty(data.sistema.beepDuty), [data.sistema.beepDuty])
   useEffect(() => setRetencion(data.automatizacion.retencionMs), [data.automatizacion.retencionMs])
+
+  const enLista = !medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta && !notificacionesAbierta
+  const scrollLista = useRef(0)
+  const enListaRef = useRef(enLista)
+  enListaRef.current = enLista
+  useEffect(() => {
+    const guardar = () => {
+      if (enListaRef.current) scrollLista.current = window.scrollY
+    }
+    window.addEventListener('scroll', guardar, { passive: true })
+    return () => window.removeEventListener('scroll', guardar)
+  }, [])
+  useLayoutEffect(() => {
+    window.scrollTo(0, enLista ? scrollLista.current : 0)
+  }, [enLista])
   useEffect(() => {
     function openPane(event: Event) {
       const pane = (event as CustomEvent<string>).detail
