@@ -43,6 +43,7 @@ import { EquipoVistas } from '@/components/dashboard/equipo-vistas'
 import { CentroVoz } from '@/components/dashboard/centro-voz'
 import { AlertasVistas } from '@/components/dashboard/alertas-vistas'
 import { NotificacionesVistas } from '@/components/dashboard/notificaciones-vistas'
+import { DatosAlmacenados } from '@/components/dashboard/datos-almacenados'
 import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
 import { activeEquipo, loadEquipo } from '@/lib/page-equipo'
 import { buildVerificacionFalla } from '@/lib/verificacion-falla'
@@ -877,6 +878,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
                   />
                 </div>
               </div>
+              <DatosAlmacenados data={data} onToggle={(path, value) => send(path, value)} />
             </CardContent>
           </Card>
         </div>
@@ -1016,7 +1018,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <Cpu className="w-5 h-5 text-sky-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">SISTEMA</p>
-            <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion</p>
+            <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion y datos de la semana</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
