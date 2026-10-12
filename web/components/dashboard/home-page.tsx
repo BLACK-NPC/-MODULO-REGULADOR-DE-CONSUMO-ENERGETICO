@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Thermometer, Droplets, Zap, Play, Square, Mic, User } from 'lucide-react'
+import { Thermometer, Droplets, Zap, Play, Square, User } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { VoiceAssistant } from '@/components/voice-assistant'
-import type { VoiceIntent } from '@/components/voice-assistant'
 import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 
@@ -15,8 +13,6 @@ const LARGO_ANILLO = 2 * Math.PI * RADIO_ANILLO
 interface HomePageProps {
   data: AVCData
   onUpdate: (path: string, value: unknown) => void
-  onVoiceSectionVisibleChange?: (visible: boolean) => void
-  onVoiceCommand?: (intent: VoiceIntent) => Promise<string | null> | string | null
   isDemo?: boolean
   lastHeartbeatAt?: number | null
 }
@@ -24,12 +20,9 @@ interface HomePageProps {
 export function HomePage({
   data,
   onUpdate,
-  onVoiceSectionVisibleChange,
-  onVoiceCommand,
   isDemo = false,
   lastHeartbeatAt = null,
 }: HomePageProps) {
-  const voiceSectionRef = useRef<HTMLElement>(null)
   const envioObjetivo = useRef<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [objetivo, setObjetivo] = useState(data.setpoint)
@@ -71,22 +64,6 @@ export function HomePage({
       : diferencia === 0
         ? 'En el objetivo'
         : `${Math.abs(diferencia)} °C ${diferencia > 0 ? 'sobre' : 'bajo'} el objetivo`
-
-  useEffect(() => {
-    if (!onVoiceSectionVisibleChange) return
-    const el = voiceSectionRef.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        onVoiceSectionVisibleChange(entry.isIntersecting)
-      },
-      { threshold: 0.3 }
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onVoiceSectionVisibleChange])
 
   function cambiarObjetivo(valor: number) {
     setObjetivo(valor)
@@ -269,31 +246,6 @@ export function HomePage({
           </div>
         </div>
       </div>
-
-      <section
-        id="voice-assistant-section"
-        ref={voiceSectionRef}
-        aria-label="Control por voz"
-      >
-        <Card className="bg-card border-[#3ddc6a]/30">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#3ddc6a]/20 flex items-center justify-center shrink-0">
-                <Mic className="w-5 h-5 text-[#7cf0a0]" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Control por voz</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Comandos hablados para EcoPulse. En otras pantallas usa el boton flotante.
-                </p>
-              </div>
-            </div>
-            {onVoiceCommand && (
-              <VoiceAssistant onCommand={onVoiceCommand} lang="es-CO" />
-            )}
-          </CardContent>
-        </Card>
-      </section>
     </div>
   )
 }

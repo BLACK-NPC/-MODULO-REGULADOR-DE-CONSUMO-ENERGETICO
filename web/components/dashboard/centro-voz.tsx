@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import type { AVCData } from '@/hooks/use-avc-data'
 import type { HmiCommandResult } from '@/lib/hmi-command'
 import { speak, stopSpeaking } from '@/lib/speech-synthesis'
+import { VOICE_COMMAND_GROUPS } from '@/lib/voice-command-menu'
 import { FAB_HIDDEN_CHANGE_EVENT, isFabHidden, setFabHidden } from '@/lib/fab-storage'
 import {
   ACCIONES,
@@ -477,6 +478,25 @@ export function CentroVoz({ data, onUpdate, onBack, onNavigate, isDemo = false, 
             <Dato etiqueta="Ventilador" valor={VENTILADOR_AIRE[aire.ventilador]} />
             <Dato etiqueta="Funciones" valor={funcionesAire || 'Ninguna'} />
             <p className="mt-2 text-[11px] text-muted-foreground">La orden del aire se guarda en la pagina hasta que la ESP32 tenga el emisor infrarrojo.</p>
+          </div>
+        </Seccion>
+
+        <Seccion titulo="Comandos del asistente" className="md:col-span-2">
+          <p className="text-xs text-muted-foreground">
+            Frases que Hey Eco ya entiende. Para enseñar otra forma de decirlas, usa Mis comandos, mas abajo.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {VOICE_COMMAND_GROUPS.map((grupo) => (
+              <div key={grupo.label} className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7cf0a0]">{grupo.label}</p>
+                {grupo.commands.map(({ cmd, desc }) => (
+                  <div key={cmd}>
+                    <p className="text-sm font-medium text-foreground">{cmd}</p>
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </Seccion>
 

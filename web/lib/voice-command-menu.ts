@@ -119,8 +119,8 @@ export const VOICE_COMMAND_GROUPS = [
   {
     label: 'Menu',
     commands: [
-      { cmd: 'Mostrar que decir', desc: 'Abre este menu de comandos' },
-      { cmd: 'Ocultar menu', desc: 'Cierra el menu de comandos' },
+      { cmd: 'Mostrar que decir', desc: 'Abre el centro de voz, donde esta la lista' },
+      { cmd: 'Ocultar menu', desc: 'La lista queda en el centro de voz' },
     ],
   },
 ]

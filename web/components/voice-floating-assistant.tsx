@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Mic, Command, ChevronRight, CheckCircle2, Loader2, Waves, GripVertical } from 'lucide-react'
+import { Mic, CheckCircle2, Loader2, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   FAB_HIDDEN_CHANGE_EVENT,
@@ -10,7 +10,6 @@ import {
   FAB_STORAGE_KEY_POS,
   isFabHidden,
 } from '@/lib/fab-storage'
-import { VOICE_COMMAND_GROUPS } from '@/lib/voice-command-menu'
 import { useVoiceRecognition } from '@/hooks/use-voice-recognition'
 import type { VoiceIntent } from '@/components/voice-assistant'
 
@@ -524,55 +523,6 @@ export function VoiceFloatingAssistant({
         onPointerUp={dockedHere ? undefined : onGroupPointerUp}
         onPointerCancel={dockedHere ? undefined : onGroupPointerCancel}
       >
-        {commandsMenuOpen && (
-          <div
-            className="rounded-2xl border border-white/10 bg-gray-950/95 backdrop-blur-md shadow-2xl overflow-hidden animate-in slide-in-from-right-4 duration-200"
-            style={{ width: MENU_WIDTH, maxHeight: 320 }}
-          >
-            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2 cursor-grab">
-              <GripVertical className="h-4 w-4 text-white/30 shrink-0" />
-              <Command className="h-4 w-4 text-emerald-400" />
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/50 flex-1">
-                Comandos disponibles
-              </p>
-            </div>
-            <div
-              className="overflow-y-auto max-h-[260px] p-2 space-y-3"
-              data-no-drag
-            >
-              {VOICE_COMMAND_GROUPS.map((group) => (
-                <div key={group.label} className="space-y-1">
-                  <p className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider px-2">
-                    {group.label}
-                  </p>
-                  <div className="rounded-xl border border-white/8 overflow-hidden divide-y divide-white/5">
-                    {group.commands.map(({ cmd, desc }) => (
-                      <div
-                        key={cmd}
-                        className="flex items-start gap-2 px-3 py-2.5 bg-white/[0.03]"
-                      >
-                        <ChevronRight className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs text-white font-medium leading-snug">{cmd}</p>
-                          <p className="text-[10px] text-white/40 mt-0.5">{desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              data-no-drag
-              onClick={() => onCommandsMenuOpenChange(false)}
-              className="w-full py-2 text-[10px] text-white/30 hover:text-white/50 border-t border-white/10 transition-colors"
-            >
-              Cerrar menu
-            </button>
-          </div>
-        )}
-
         {!dockedHere && micButton}
       </div>
       )}

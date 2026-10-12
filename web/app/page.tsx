@@ -31,7 +31,6 @@ const DEFAULT_WEATHER_CITY = 'Cali'
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
-  const [voiceSectionVisible, setVoiceSectionVisible] = useState(false)
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
 
@@ -68,10 +67,6 @@ export default function Dashboard() {
     notifyHmiResult(result)
     return result
   }, [commandUpdate, notifyHmiResult])
-
-  const handleVoiceSectionVisibleChange = useCallback((visible: boolean) => {
-    setVoiceSectionVisible(visible)
-  }, [])
 
   const handleVoiceCommand = useCallback(async (intent: VoiceIntent, signal?: AbortSignal): Promise<string | null> => {
     if (signal?.aborted) return null
@@ -115,13 +110,15 @@ export default function Dashboard() {
     }
 
     if (intent.type === 'SHOW_COMMANDS') {
-      setCommandsMenuOpen(true)
-      return 'Estos son los comandos que puedes decir.'
+      setCommandsMenuOpen(false)
+      setCurrentPage('configuraciones')
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: 'voz' })), 350)
+      return 'Abro el centro de voz. Ahi esta la lista de comandos.'
     }
 
     if (intent.type === 'HIDE_COMMANDS') {
       setCommandsMenuOpen(false)
-      return 'Menu de comandos cerrado.'
+      return 'La lista de comandos esta en el centro de voz.'
     }
 
     if (intent.type === 'NAVIGATE') {
@@ -217,8 +214,6 @@ export default function Dashboard() {
           <HomePage
             data={data}
             onUpdate={handleHmiUpdate}
-            onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
-            onVoiceCommand={handleVoiceCommand}
             isDemo={isDemo}
             lastHeartbeatAt={lastHeartbeatAt}
           />
@@ -256,8 +251,6 @@ export default function Dashboard() {
           <HomePage
             data={data}
             onUpdate={handleHmiUpdate}
-            onVoiceSectionVisibleChange={handleVoiceSectionVisibleChange}
-            onVoiceCommand={handleVoiceCommand}
             isDemo={isDemo}
             lastHeartbeatAt={lastHeartbeatAt}
           />
@@ -310,7 +303,7 @@ export default function Dashboard() {
 
       <VoiceFloatingAssistant
         currentPage={currentPage}
-        voiceSectionVisible={voiceSectionVisible}
+        voiceSectionVisible={false}
         commandsMenuOpen={commandsMenuOpen}
         onCommandsMenuOpenChange={setCommandsMenuOpen}
         onCommand={handleVoiceCommand}
