@@ -43,7 +43,7 @@ export function DatosAlmacenados({
   data: AVCData
   onToggle: (path: string, value: boolean) => void
 }) {
-  const [tab, setTab] = useState<'general' | 'carpetas' | 'mapa' | 'reglas'>('mapa')
+  const [tab, setTab] = useState<'general' | 'carpetas' | 'mapa' | 'reglas'>('general')
   const [carpeta, setCarpeta] = useState<Metric | null>(null)
   const [mapa, setMapa] = useState<Metric>('temperatura')
   const [celda, setCelda] = useState('')

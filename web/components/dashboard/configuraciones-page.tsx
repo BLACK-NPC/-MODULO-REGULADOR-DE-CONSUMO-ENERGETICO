@@ -58,6 +58,7 @@ interface ConfiguracionesPageProps {
 }
 
 const SP_PIN = '2011'
+const DATA_PIN = '0130'
 
 const sleepLabels = ['15s', '30s', '1m', '2m', '5m', '10m', 'Nunca']
 const firebaseModes = ['Apagado', 'Solo leer', 'Solo enviar', 'Leer+enviar']
@@ -198,6 +199,12 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   const [pinOpen, setPinOpen] = useState(false)
   const [pinDraft, setPinDraft] = useState('')
   const [pinError, setPinError] = useState(false)
+  const [datosAbierta, setDatosAbierta] = useState(false)
+  const [datosPinOpen, setDatosPinOpen] = useState(false)
+  const [datosPinDraft, setDatosPinDraft] = useState('')
+  const [datosPinMsg, setDatosPinMsg] = useState('')
+  const [datosFallos, setDatosFallos] = useState(0)
+  const [datosBloqueoHasta, setDatosBloqueoHasta] = useState(0)
   const [pendingDht, setPendingDht] = useState<11 | 22 | null>(null)
   const [brillo, setBrillo] = useState(data.sistema.brillo)
   const [beepMs, setBeepMs] = useState(data.sistema.beepMs)
@@ -219,6 +226,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
       setEquipoAbierta(pane === 'equipo')
       if (pane === 'equipo') setEquipoVista('panel')
       setSistemaAbierta(pane === 'sistema')
+      setDatosAbierta(false)
       setConectAbierta(pane === 'conectividad')
       setVozAbierta(pane === 'voz')
       setAlertasAbierta(pane === 'alertas')
@@ -262,6 +270,43 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
     if (path === 'config/spMax' && value <= data.config.spMin) return
     if (path === 'config/spMin' && value >= data.config.spMax) return
     send(path, value)
+  }
+
+  function pedirDatos() {
+    if (datosBloqueoHasta > Date.now()) {
+      setDatosPinMsg('Control de datos temporalmente bloqueado')
+      setDatosPinOpen(true)
+      setDatosPinDraft('')
+      return
+    }
+    setDatosPinMsg('')
+    setDatosPinDraft('')
+    setDatosPinOpen(true)
+  }
+
+  function submitDatosPin() {
+    if (datosBloqueoHasta > Date.now()) return
+    if (datosPinDraft === DATA_PIN) {
+      setDatosFallos(0)
+      setDatosBloqueoHasta(0)
+      setDatosPinOpen(false)
+      setDatosPinDraft('')
+      setDatosPinMsg('')
+      setDatosAbierta(true)
+      return
+    }
+    const fallos = datosFallos + 1
+    if (fallos >= 3) {
+      setDatosFallos(0)
+      setDatosBloqueoHasta(Date.now() + 30000)
+      setDatosPinOpen(false)
+      setDatosPinDraft('')
+      setDatosPinMsg('Acceso bloqueado durante 30 segundos')
+      return
+    }
+    setDatosFallos(fallos)
+    setDatosPinDraft('')
+    setDatosPinMsg(fallos === 1 ? 'PIN incorrecto - quedan 2 intentos' : 'PIN incorrecto - queda 1 intento')
   }
 
   function submitPin() {
@@ -793,9 +838,23 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         />
       ) : null}
 
-      {sistemaAbierta ? (
+      {sistemaAbierta && datosAbierta ? (
         <div className="space-y-3">
-          <button type="button" onClick={() => setSistemaAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <button
+            type="button"
+            onClick={() => setDatosAbierta(false)}
+            className="flex items-center gap-2 text-sm font-medium text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Sistema
+          </button>
+          <DatosAlmacenados data={data} onToggle={(path, value) => send(path, value)} />
+        </div>
+      ) : null}
+
+      {sistemaAbierta && !datosAbierta ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => { setDatosAbierta(false); setSistemaAbierta(false) }} className="flex items-center gap-2 text-sm font-medium text-foreground">
             <ArrowLeft className="w-4 h-4" />
             Configuraciones
           </button>
@@ -878,7 +937,18 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
                   />
                 </div>
               </div>
-              <DatosAlmacenados data={data} onToggle={(path, value) => send(path, value)} />
+              <button type="button" onClick={pedirDatos} className="w-full text-left">
+                <OptionRow
+                  icon={Lock}
+                  color="text-emerald-400"
+                  bgColor="bg-emerald-500/20"
+                  label="DATOS"
+                  detail="Almacenamiento semanal · protegido por PIN"
+                >
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </OptionRow>
+              </button>
+              {datosPinMsg && !datosPinOpen ? <p className="text-xs text-red-400">{datosPinMsg}</p> : null}
             </CardContent>
           </Card>
         </div>
@@ -1018,7 +1088,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <Cpu className="w-5 h-5 text-sky-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">SISTEMA</p>
-            <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion y datos de la semana</p>
+            <p className="text-xs text-muted-foreground">Brillo, suspension, confirmacion y datos</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
@@ -1093,6 +1163,32 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
               >
                 Aceptar
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {datosPinOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-4 space-y-3">
+            <p className="font-medium text-foreground">PIN de datos (4 digitos)</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              disabled={datosBloqueoHasta > Date.now()}
+              value={datosPinDraft}
+              onChange={(e) => setDatosPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitDatosPin()
+              }}
+              className="w-full h-10 rounded-lg border border-border bg-secondary px-3 tracking-[0.4em] text-foreground"
+            />
+            {datosPinMsg ? <p className="text-sm text-red-400">{datosPinMsg}</p> : null}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-3 py-2 rounded-lg border border-border text-foreground" onClick={() => setDatosPinOpen(false)}>Cancelar</button>
+              <button type="button" className="px-3 py-2 rounded-lg bg-primary text-primary-foreground" onClick={submitDatosPin}>Aceptar</button>
             </div>
           </div>
         </div>
