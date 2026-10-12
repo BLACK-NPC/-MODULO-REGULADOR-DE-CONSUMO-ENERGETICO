@@ -103,6 +103,7 @@ export const VOICE_COMMAND_GROUPS = [
       { cmd: 'Abrir alertas', desc: 'Seccion de alertas activas' },
       { cmd: 'Ir a configuraciones', desc: 'Ajustes del regulador' },
       { cmd: 'Ir a inicio', desc: 'Panel principal del sistema' },
+      { cmd: 'Separa la grafica de humedad', desc: 'En Monitoreo. La primera vez pregunta si la aprende' },
     ],
   },
   {

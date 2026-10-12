@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Thermometer, Droplets, Zap, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { AVCData, AVCHistoryDay } from '@/hooks/use-avc-data'
+import type { AccionPantalla } from '@/lib/voice-learn'
 
 interface MonitoreoPageProps {
   data: AVCData
@@ -276,6 +277,29 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
     return `${Math.round(ultimo.valor)} W`
   }
 
+  useEffect(() => {
+    function alHablar(event: Event) {
+      const orden = (event as CustomEvent<AccionPantalla>).detail
+      if (!orden) return
+      const metrica = orden.metrica
+      setMenu(null)
+      if (orden.op === 'separar') {
+        setVisible((actual) => ({ ...actual, [metrica]: true }))
+        setSeparada((actual) => ({ ...actual, [metrica]: true }))
+        return
+      }
+      if (orden.op === 'ocultar') {
+        setVisible((actual) => ({ ...actual, [metrica]: false }))
+        setSeparada((actual) => ({ ...actual, [metrica]: false }))
+        return
+      }
+      setVisible((actual) => ({ ...actual, [metrica]: true }))
+      setSeparada((actual) => ({ ...actual, [metrica]: false }))
+    }
+    window.addEventListener('ecopulse-monitoreo', alHablar)
+    return () => window.removeEventListener('ecopulse-monitoreo', alHablar)
+  }, [])
+
   function ocultar(metrica: Metrica) {
     setMenu(null)
     if (!visible[metrica]) {
@@ -314,19 +338,19 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
 
       <div className="flex gap-1 overflow-x-auto">
         {DIAS.map((dia) => (
-          <button
+                <button
             key={dia.key}
             type="button"
             onClick={() => setSelectedDay(dia.key)}
-            className={cn(
+                  className={cn(
               'h-8 min-w-12 flex-1 rounded-full border text-xs font-medium',
               selectedDay === dia.key ? 'bg-foreground text-background border-foreground' : 'bg-card text-muted-foreground border-border',
             )}
           >
             {dia.label}
-          </button>
-        ))}
-      </div>
+                </button>
+              ))}
+            </div>
 
       <Card className="bg-card border-border">
         <CardContent className="p-3 space-y-2">
@@ -399,7 +423,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                   <button type="button" onClick={() => separar(metrica)} className="h-7 px-2 rounded-md bg-foreground text-background text-[11px]">
                     {separada[metrica] && visible[metrica] ? 'Unir' : 'Separar'}
                   </button>
-                </div>
+              </div>
               ) : (
                 <button type="button" onClick={() => setMenu(metrica)} className="w-full flex items-center gap-2 text-left">
                   <Icono className="w-4 h-4 shrink-0" style={{ color: COLORES[metrica] }} />
@@ -518,7 +542,7 @@ function PanelSeparado({
   const listaPicos = picos(puntos, metrica)
   const listaAlertas = alertas(puntos, metrica)
   return (
-    <Card className="bg-card border-border">
+        <Card className="bg-card border-border">
       <CardContent className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-medium" style={{ color: COLORES[metrica] }}>{titulo}</p>
@@ -549,7 +573,7 @@ function PanelSeparado({
               <Line type="monotone" dataKey={metrica} name={titulo} stroke={COLORES[metrica]} strokeWidth={2} dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+              </div>
         <p className="text-[11px] text-foreground">{statsLinea(puntos, metrica)}</p>
         <div className="grid grid-cols-2 gap-2">
           {barras(puntos, metrica).map((barra) => (
@@ -586,10 +610,10 @@ function PanelSeparado({
                 <span className="text-muted-foreground">{alerta.hora}h</span>
               </div>
             ))}
-          </div>
+            </div>
         ) : null}
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
   )
 }
 

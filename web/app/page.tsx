@@ -25,6 +25,7 @@ import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
 import { stopSpeaking, getSpeechRate, setSpeechRate, speak } from '@/lib/speech-synthesis'
 import { continueDialog, runExt, type ExtCtx } from '@/lib/voice-ext-run'
+import { continueLearn, ejecutarAprendida, ofrecerAprender, type AccionPantalla } from '@/lib/voice-learn'
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
@@ -77,6 +78,14 @@ export default function Dashboard() {
       if (signal?.aborted) return null
       if (enDialogo) toast.info(enDialogo, { duration: 8000 })
       return enDialogo
+    }
+
+    const aprender = continueLearn(intent.raw, intent.type === 'UNKNOWN')
+    if (aprender) {
+      if (signal?.aborted) return null
+      aplicarAccionPantalla(aprender.run)
+      toast.info(aprender.text, { duration: 8000 })
+      return aprender.text
     }
 
     if (intent.type === 'EXT') {
@@ -174,10 +183,30 @@ export default function Dashboard() {
       return result.mensaje
     }
 
+    if (intent.type === 'UNKNOWN') {
+      const conocida = ejecutarAprendida(intent.raw)
+      if (conocida) {
+        aplicarAccionPantalla(conocida.run)
+        toast.info(conocida.text, { duration: 8000 })
+        return conocida.text
+      }
+      const propuesta = ofrecerAprender(intent.raw)
+      if (propuesta) {
+        toast.info(propuesta.text, { duration: 8000 })
+        return propuesta.text
+      }
+    }
+
     const fallback = 'Comando no reconocido. Di "ayuda" para ver opciones.'
     toast.error(fallback)
     return fallback
   }, [data, sendHmiCommand, isDemo, lastHeartbeatAt, getExtCtx])
+
+  function aplicarAccionPantalla(accion?: AccionPantalla) {
+    if (!accion) return
+    setCurrentPage('monitoreo')
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-monitoreo', { detail: accion })), 350)
+  }
 
   if (loading) {
     return (
