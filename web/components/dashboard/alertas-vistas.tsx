@@ -38,16 +38,26 @@ const ICONO = ['#ff8a4c', '#4cc9f0', '#ffd23f', '#2ee6a6', '#f472b6', '#a78bfa',
 
 type Nivel = 'ok' | 'aviso' | 'peligro' | 'sin_dato'
 
-const LUZ: Record<Nivel, { borde: string; fondo: string; texto: string }> = {
-  ok: { borde: 'rgba(125,220,31,.45)', fondo: 'rgba(125,220,31,.12)', texto: '#7ddc1f' },
-  aviso: { borde: 'rgba(240,180,41,.5)', fondo: 'rgba(240,180,41,.14)', texto: '#f0b429' },
-  peligro: { borde: 'rgba(255,90,79,.55)', fondo: 'rgba(255,90,79,.14)', texto: '#ff5a4f' },
-  sin_dato: { borde: 'rgba(255,255,255,.08)', fondo: 'rgba(255,255,255,.03)', texto: '#9aa39d' },
+const LUZ: Record<Nivel, { linea: string; texto: string }> = {
+  ok: { linea: 'rgba(125,220,31,.9)', texto: '#7ddc1f' },
+  aviso: { linea: 'rgba(240,180,41,.9)', texto: '#f0b429' },
+  peligro: { linea: 'rgba(255,90,79,.9)', texto: '#ff5a4f' },
+  sin_dato: { linea: 'rgba(125,220,31,.35)', texto: '#9aa39d' },
 }
 
 function tinta(hex: string, alpha: number) {
   const n = Number.parseInt(hex.slice(1), 16)
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
+}
+
+function Franja({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute left-4 right-4 top-0 h-[2px] rounded-full"
+      style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
+    />
+  )
 }
 
 function clock(epoch: number) {
@@ -192,6 +202,7 @@ export function AlertasVistas({
     setTasked((current) => [...current, row.id])
   }
 
+  const heroLuz = hero.tone === 'ok' ? '#7ddc1f' : hero.tone === 'bad' ? '#ff5a4f' : '#f0b429'
   const HeroIcon = hero.tone === 'ok' ? Check : AlertTriangle
 
   return (
@@ -205,24 +216,15 @@ export function AlertasVistas({
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Alertas</h1>
       )}
 
-      <div
-        role="status"
-        className={cn(
-          'flex items-center gap-4 rounded-2xl border p-5',
-          hero.tone === 'ok' && 'border-[#7ddc1f]/40 bg-[#7ddc1f]/10',
-          hero.tone === 'warn' && 'border-[#f0b429]/45 bg-[#f0b429]/10',
-          hero.tone === 'bad' && 'border-[#ff5a4f]/45 bg-[#ff5a4f]/10',
-          hero.tone === 'off' && 'border-border bg-card',
-        )}
-      >
+      <div role="status" className="relative flex items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-card p-5">
+        <Franja color={hero.tone === 'off' ? 'rgba(240,180,41,.55)' : heroLuz} />
         <span
-          className={cn(
-            'w-14 h-14 rounded-full flex items-center justify-center shrink-0',
-            hero.tone === 'ok' && 'bg-[#7ddc1f]/15 text-[#7ddc1f]',
-            hero.tone === 'warn' && 'bg-[#f0b429]/15 text-[#f0b429]',
-            hero.tone === 'bad' && 'bg-[#ff5a4f]/15 text-[#ff5a4f]',
-            hero.tone === 'off' && 'bg-secondary text-muted-foreground',
-          )}
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
+          style={{
+            color: heroLuz,
+            background: tinta(heroLuz, 0.1),
+            boxShadow: `0 0 0 10px ${tinta(heroLuz, 0.06)}, 0 0 0 22px ${tinta(heroLuz, 0.03)}`,
+          }}
         >
           <HeroIcon className="w-7 h-7" />
         </span>
@@ -311,7 +313,7 @@ export function AlertasVistas({
 
           <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-baseline justify-between gap-2">
-              <h3 className="font-semibold text-foreground">Comportamiento</h3>
+              <h3 className="font-semibold text-foreground">Senales del equipo</h3>
               <span className="text-xs text-muted-foreground">
                 {!fresh && peligros === 0 ? 'Sin lectura' : `${sanos} bien · ${avisos} aviso · ${peligros} peligro`}
               </span>
@@ -323,11 +325,8 @@ export function AlertasVistas({
                 const luz = LUZ[pieza.nivel]
                 const icono = ICONO[signal]
                 return (
-                  <div
-                    key={name}
-                    className="flex flex-col gap-2.5 rounded-2xl border p-3.5"
-                    style={{ borderColor: luz.borde, background: luz.fondo }}
-                  >
+                  <div key={name} className="relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-white/10 bg-card p-3.5">
+                    <Franja color={luz.linea} />
                     <div className="flex items-center justify-between">
                       <span
                         className="flex h-10 w-10 items-center justify-center rounded-[14px] border"
