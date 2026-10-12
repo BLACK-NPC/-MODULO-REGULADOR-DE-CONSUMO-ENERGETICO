@@ -440,6 +440,14 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
             </div>
           ) : (
             <div className="h-[280px]">
+              <div className="flex items-center justify-between px-8 text-[11px] font-semibold leading-none">
+                <span style={{ color: COLORES.temperatura }}>{enCombinada.includes('temperatura') ? '°C' : ''}</span>
+                <span>
+                  {enCombinada.includes('humedad') ? <span style={{ color: COLORES.humedad }}>%</span> : null}
+                  {enCombinada.includes('humedad') && enCombinada.includes('potencia') ? <span className="text-muted-foreground"> · </span> : null}
+                  {enCombinada.includes('potencia') ? <span style={{ color: COLORES.potencia }}>W</span> : null}
+                </span>
+              </div>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={puntos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="#333" vertical={false} />
@@ -448,18 +456,18 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                     stroke="#666"
                     ticks={['0', '6', '12', '18', '23']}
                   />
-                  <YAxis yAxisId="clima" stroke="#666" domain={[0, 40]} ticks={[0, 10, 20, 30, 40]} width={32} />
-                  <YAxis yAxisId="escala" orientation="right" stroke="#666" domain={[0, 100]} width={36} />
+                  <YAxis yAxisId="clima" stroke={COLORES.temperatura} domain={[0, 40]} ticks={[0, 10, 20, 30, 40]} width={32} hide={!enCombinada.includes('temperatura')} />
+                  <YAxis yAxisId="escala" orientation="right" stroke={enCombinada.includes('potencia') ? COLORES.potencia : COLORES.humedad} domain={[0, 100]} width={36} hide={!enCombinada.includes('humedad') && !enCombinada.includes('potencia')} />
                   <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
                   {horaMarcada !== null ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
                   {enCombinada.includes('potencia') ? (
-                    <Line yAxisId="escala" type="monotone" dataKey="potencia" name="POT" stroke={COLORES.potencia} strokeWidth={2} dot={false} connectNulls={false} />
+                    <Line yAxisId="escala" type="monotone" dataKey="potencia" name="W" stroke={COLORES.potencia} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
                   {enCombinada.includes('humedad') ? (
-                    <Line yAxisId="escala" type="monotone" dataKey="humedad" name="HUM" stroke={COLORES.humedad} strokeWidth={2} dot={false} connectNulls={false} />
+                    <Line yAxisId="escala" type="monotone" dataKey="humedad" name="%" stroke={COLORES.humedad} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
                   {enCombinada.includes('temperatura') ? (
-                    <Line yAxisId="clima" type="monotone" dataKey="temperatura" name="TEMP" stroke={COLORES.temperatura} strokeWidth={2} dot={false} connectNulls={false} />
+                    <Line yAxisId="clima" type="monotone" dataKey="temperatura" name="°C" stroke={COLORES.temperatura} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
                 </LineChart>
               </ResponsiveContainer>
@@ -619,7 +627,7 @@ function PanelSeparado({
   onDetalle: () => void
 }) {
   const titulo = metrica === 'temperatura' ? 'TEMPERATURA' : metrica === 'humedad' ? 'HUMEDAD' : 'POTENCIA'
-  const unidad = metrica === 'temperatura' ? 'C' : '%'
+  const unidad = metrica === 'temperatura' ? '°C' : metrica === 'humedad' ? '%' : 'W'
   const datos = ventana(puntos, horas, esHoy)
   const listaPicos = picos(puntos, metrica)
   const listaAlertas = alertas(puntos, metrica)
@@ -627,7 +635,7 @@ function PanelSeparado({
         <Card className="bg-card border-border">
       <CardContent className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-medium" style={{ color: COLORES[metrica] }}>{titulo}</p>
+          <p className="text-xs font-medium" style={{ color: COLORES[metrica] }}>{titulo} · {unidad}</p>
           <p className="text-xs text-muted-foreground">{valor}</p>
         </div>
         <div className="flex gap-1">
@@ -650,7 +658,7 @@ function PanelSeparado({
             <LineChart data={datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#333" vertical={false} />
               <XAxis dataKey="etiqueta" stroke="#666" />
-              <YAxis stroke="#666" width={32} domain={metrica === 'temperatura' ? [0, 40] : [0, 100]} />
+              <YAxis stroke={COLORES[metrica]} width={36} domain={metrica === 'temperatura' ? [0, 40] : [0, 100]} unit={unidad} />
               <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
               {horaMarcada !== null ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
               <Line type="monotone" dataKey={metrica} name={titulo} stroke={COLORES[metrica]} strokeWidth={2} dot={false} connectNulls={false} />
