@@ -34,6 +34,21 @@ const HINTS = [
 const GO = ['Medicion', 'Medicion', 'Medicion', 'Conectividad', 'Automatizacion', 'Conectividad', 'Sistema']
 const PANES: Pane[] = ['medicion', 'medicion', 'medicion', 'conectividad', 'automatizacion', 'conectividad', 'sistema']
 const ICONS = [Thermometer, Droplets, Zap, Wifi, User, Cloud, Cpu]
+const ICONO = ['#ff8a4c', '#4cc9f0', '#ffd23f', '#2ee6a6', '#f472b6', '#a78bfa', '#7ddc1f']
+
+type Nivel = 'ok' | 'aviso' | 'peligro' | 'sin_dato'
+
+const LUZ: Record<Nivel, { borde: string; fondo: string; texto: string }> = {
+  ok: { borde: 'rgba(125,220,31,.45)', fondo: 'rgba(125,220,31,.12)', texto: '#7ddc1f' },
+  aviso: { borde: 'rgba(240,180,41,.5)', fondo: 'rgba(240,180,41,.14)', texto: '#f0b429' },
+  peligro: { borde: 'rgba(255,90,79,.55)', fondo: 'rgba(255,90,79,.14)', texto: '#ff5a4f' },
+  sin_dato: { borde: 'rgba(255,255,255,.08)', fondo: 'rgba(255,255,255,.03)', texto: '#9aa39d' },
+}
+
+function tinta(hex: string, alpha: number) {
+  const n = Number.parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
+}
 
 function clock(epoch: number) {
   if (epoch < 1700000000) return '--'
@@ -53,15 +68,45 @@ function duration(start: number, end: number) {
   return formatSeconds(until - start)
 }
 
-function liveValue(data: AVCData, signal: number, fresh: boolean) {
-  if (!fresh) return '--'
-  if (signal === 0) return data.config.sensorTemperatura ? `${data.temperatura} °C` : 'Apagado'
-  if (signal === 1) return data.config.sensorHumedad ? `${data.humedad} %` : 'Apagado'
-  if (signal === 2) return data.config.sensorPotencia ? `${data.potencia} W` : 'Apagado'
-  if (signal === 3) return data.wifi.conectado ? data.wifi.ssid || 'Enlace' : 'Sin enlace'
-  if (signal === 4) return data.config.sensorMovimiento ? (data.movimiento ? 'Si' : 'No') : 'Apagado'
-  if (signal === 5) return 'Publicando'
-  return '--'
+function comportamiento(data: AVCData, signal: number, fresh: boolean, bad: Set<number>) {
+  if (bad.has(signal)) {
+    return { nivel: 'peligro' as const, titulo: 'Falla', detalle: HINTS[signal] }
+  }
+  if (!fresh) {
+    return { nivel: 'sin_dato' as const, titulo: 'Sin lectura', detalle: 'No se puede confirmar' }
+  }
+  if (signal === 0) {
+    if (!data.config.sensorTemperatura) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
+    if (data.temperatura < 0 || data.temperatura > 55) return { nivel: 'aviso' as const, titulo: 'Dato raro', detalle: `${data.temperatura} °C` }
+    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${data.temperatura} °C` }
+  }
+  if (signal === 1) {
+    if (!data.config.sensorHumedad) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
+    if (data.humedad < 0 || data.humedad > 100) return { nivel: 'peligro' as const, titulo: 'Dato imposible', detalle: `${Math.round(data.humedad)} %` }
+    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${Math.round(data.humedad)} %` }
+  }
+  if (signal === 2) {
+    if (!data.config.sensorPotencia) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
+    if (data.potencia < 0) return { nivel: 'aviso' as const, titulo: 'Dato raro', detalle: `${data.potencia} W` }
+    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${data.potencia} W` }
+  }
+  if (signal === 3) {
+    if (!data.conectividad.wifiRadio) return { nivel: 'aviso' as const, titulo: 'Radio apagada', detalle: 'El WiFi del equipo esta apagado' }
+    if (!data.wifi.conectado) return { nivel: 'peligro' as const, titulo: 'Sin enlace', detalle: 'No hay red' }
+    return { nivel: 'ok' as const, titulo: 'Enlazado', detalle: data.wifi.ssid || 'Con red' }
+  }
+  if (signal === 4) {
+    if (!data.config.sensorMovimiento) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
+    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: data.movimiento ? 'Hay presencia' : 'Sin presencia ahora' }
+  }
+  if (signal === 5) {
+    const modo = data.conectividad.firebaseModo
+    if (modo === 0) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Firebase no esta activo' }
+    if (modo === 1) return { nivel: 'aviso' as const, titulo: 'Solo lee', detalle: 'No esta enviando el estado' }
+    if (modo === 2) return { nivel: 'ok' as const, titulo: 'Enviando', detalle: 'Publica, no recibe ordenes' }
+    return { nivel: 'ok' as const, titulo: 'Publicando', detalle: 'Lectura y envio activos' }
+  }
+  return { nivel: 'ok' as const, titulo: 'En linea', detalle: 'El cerebro responde' }
 }
 
 export function AlertasVistas({
@@ -89,24 +134,36 @@ export function AlertasVistas({
   const open = records.filter((row) => row.end === 0)
   const done = records.filter((row) => row.end !== 0)
   const bad = new Set(open.map((row) => row.signal))
-  const noReading = !journal && !fresh
-  const failCount = journal ? open.length : fresh ? data.diag.fallas : 0
+  const piezas = NAMES.map((_, signal) => comportamiento(data, signal, fresh, bad))
+  const peligros = piezas.filter((pieza) => pieza.nivel === 'peligro').length
+  const avisos = piezas.filter((pieza) => pieza.nivel === 'aviso').length
+  const sanos = piezas.filter((pieza) => pieza.nivel === 'ok').length
 
-  const hero = noReading
+  const hero = !fresh && peligros === 0
     ? {
         tone: 'off' as const,
         title: 'Sin lectura reciente',
-        text: 'No se puede confirmar el estado. Revisa que el HMI este encendido, el WiFi con enlace y Firebase en Leer+enviar.',
+        text: 'No se puede confirmar el comportamiento. Revisa que el HMI este encendido, el WiFi con enlace y Firebase en Leer+enviar.',
       }
-    : failCount > 0
+    : peligros > 0
       ? {
           tone: 'bad' as const,
-          title: `${failCount} ${failCount === 1 ? 'falla activa' : 'fallas activas'}`,
-          text: journal
-            ? `${7 - bad.size} de 7 senales funcionan con normalidad.`
-            : 'El equipo reporta fallas abiertas. El detalle llega cuando el HMI publica el diario.',
+          title: `${peligros} ${peligros === 1 ? 'componente en peligro' : 'componentes en peligro'}`,
+          text: `${sanos} funcionan bien${avisos ? ` y ${avisos} no estan al 100%` : ''}.`,
         }
-      : { tone: 'ok' as const, title: 'Todo en orden', text: 'Las 7 senales funcionan con normalidad.' }
+      : fresh && data.diag.fallas > 0
+        ? {
+            tone: 'bad' as const,
+            title: `${data.diag.fallas} ${data.diag.fallas === 1 ? 'falla sin detalle' : 'fallas sin detalle'}`,
+            text: 'El equipo las reporta, pero todavia no dice que componente es.',
+          }
+        : avisos > 0
+        ? {
+            tone: 'warn' as const,
+            title: `${avisos} ${avisos === 1 ? 'componente no esta al 100%' : 'componentes no estan al 100%'}`,
+            text: 'Siguen presentes, pero hay uno apagado o con una lectura rara.',
+          }
+        : { tone: 'ok' as const, title: 'Todo en orden', text: 'Los 7 componentes funcionan con normalidad.' }
 
   const shown = filter === 1 ? open : filter === 2 ? done : records
   const totalSec = records.reduce(
@@ -152,16 +209,18 @@ export function AlertasVistas({
         role="status"
         className={cn(
           'flex items-center gap-4 rounded-2xl border p-5',
-          hero.tone === 'ok' && 'border-green-400/35 bg-gradient-to-br from-green-500/20 to-card',
-          hero.tone === 'bad' && 'border-red-400/40 bg-gradient-to-br from-red-400/20 to-card',
+          hero.tone === 'ok' && 'border-[#7ddc1f]/40 bg-[#7ddc1f]/10',
+          hero.tone === 'warn' && 'border-[#f0b429]/45 bg-[#f0b429]/10',
+          hero.tone === 'bad' && 'border-[#ff5a4f]/45 bg-[#ff5a4f]/10',
           hero.tone === 'off' && 'border-border bg-card',
         )}
       >
         <span
           className={cn(
             'w-14 h-14 rounded-full flex items-center justify-center shrink-0',
-            hero.tone === 'ok' && 'bg-green-400/20 text-green-400',
-            hero.tone === 'bad' && 'bg-red-400/20 text-red-400',
+            hero.tone === 'ok' && 'bg-[#7ddc1f]/15 text-[#7ddc1f]',
+            hero.tone === 'warn' && 'bg-[#f0b429]/15 text-[#f0b429]',
+            hero.tone === 'bad' && 'bg-[#ff5a4f]/15 text-[#ff5a4f]',
             hero.tone === 'off' && 'bg-secondary text-muted-foreground',
           )}
         >
@@ -252,36 +311,35 @@ export function AlertasVistas({
 
           <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-baseline justify-between gap-2">
-              <h3 className="font-semibold text-foreground">Senales del equipo</h3>
-              <span className="text-xs text-muted-foreground">{noReading ? 'Sin datos' : `${7 - bad.size} de 7 en orden`}</span>
+              <h3 className="font-semibold text-foreground">Comportamiento</h3>
+              <span className="text-xs text-muted-foreground">
+                {!fresh && peligros === 0 ? 'Sin lectura' : `${sanos} bien · ${avisos} aviso · ${peligros} peligro`}
+              </span>
             </div>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
               {NAMES.map((name, signal) => {
                 const Icon = ICONS[signal]
-                const isBad = bad.has(signal)
-                const value = liveValue(data, signal, fresh)
+                const pieza = piezas[signal]
+                const luz = LUZ[pieza.nivel]
+                const icono = ICONO[signal]
                 return (
                   <div
                     key={name}
-                    className={cn(
-                      'flex flex-col gap-2.5 rounded-2xl border p-3.5',
-                      isBad ? 'border-red-400/50 bg-red-400/10' : 'border-border bg-secondary/50',
-                    )}
+                    className="flex flex-col gap-2.5 rounded-2xl border p-3.5"
+                    style={{ borderColor: luz.borde, background: luz.fondo }}
                   >
-                    <div className={cn('flex items-center justify-between', isBad ? 'text-red-400' : 'text-muted-foreground')}>
-                      <Icon className="w-5 h-5" />
+                    <div className="flex items-center justify-between">
                       <span
-                        className={cn(
-                          'w-2 h-2 rounded-full',
-                          isBad ? 'bg-red-400' : value === '--' ? 'bg-muted-foreground' : 'bg-green-400',
-                        )}
-                      />
+                        className="flex h-10 w-10 items-center justify-center rounded-[14px] border"
+                        style={{ color: icono, background: tinta(icono, 0.1), borderColor: tinta(icono, 0.28) }}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </span>
+                      <span className="w-2 h-2 rounded-full" style={{ background: luz.texto }} />
                     </div>
-                    <b className="text-xl font-semibold text-foreground">{value}</b>
-                    <span className="text-xs text-muted-foreground">
-                      {name}
-                      {isBad ? ' · Falla' : ''}
-                    </span>
+                    <b className="text-xl font-semibold" style={{ color: luz.texto }}>{pieza.titulo}</b>
+                    <span className="text-xs text-muted-foreground">{name}</span>
+                    <span className="text-xs text-muted-foreground">{pieza.detalle}</span>
                   </div>
                 )
               })}
