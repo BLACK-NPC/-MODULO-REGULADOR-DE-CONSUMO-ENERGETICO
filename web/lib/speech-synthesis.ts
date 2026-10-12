@@ -1,7 +1,8 @@
 let activeUtterance: SpeechSynthesisUtterance | null = null
 let isSpeaking = false
-let speechRate = 0.9
-const speechPitch = 0.82
+let speechRate = 0.98
+const speechPitch = 1
+let turno = 0
 
 const isIOS =
   typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -17,20 +18,24 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   preloadVoices()
 }
 
-const MALE_NAME = /\b(pablo|alvaro|raul|jorge|diego|enrique|carlos|andres|juan|miguel|antonio|male|hombre)\b/i
+const MALE_NAME = /\b(pablo|alvaro|raul|jorge|diego|enrique|carlos|andres|juan|miguel|antonio|gonzalo|male|hombre)\b/i
 const FEMALE_NAME = /\b(helena|sabina|laura|elvira|monica|paulina|sofia|lucia|maria|elena|female|mujer)\b/i
+const NATURAL = /natural|neural|premium|enhanced|google|online/i
 
 function pickSpanishVoice(): SpeechSynthesisVoice | undefined {
   if (typeof window === 'undefined' || !window.speechSynthesis) return undefined
   const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('es'))
-  const males = voices.filter((v) => MALE_NAME.test(v.name) && !FEMALE_NAME.test(v.name))
-  return (
-    males.find((v) => v.lang.toLowerCase().startsWith('es-co') && v.localService) ??
-    males.find((v) => v.localService) ??
-    males[0] ??
-    voices.find((v) => v.localService) ??
-    voices[0]
-  )
+  const puntaje = (voz: SpeechSynthesisVoice) => {
+    const nombre = voz.name
+    let puntos = 0
+    if (MALE_NAME.test(nombre) && !FEMALE_NAME.test(nombre)) puntos += 8
+    if (NATURAL.test(nombre)) puntos += 10
+    if (voz.lang.toLowerCase().startsWith('es-co')) puntos += 3
+    else if (/^es-(mx|es)/i.test(voz.lang)) puntos += 1
+    if (voz.localService && !NATURAL.test(nombre)) puntos -= 3
+    return puntos
+  }
+  return [...voices].sort((a, b) => puntaje(b) - puntaje(a))[0]
 }
 
 export function getIsSpeaking(): boolean {
@@ -47,14 +52,12 @@ export function setSpeechRate(rate: number): number {
   return speechRate
 }
 
-export function speak(text: string, lang = 'es-CO'): Promise<void> {
+function decir(text: string, lang: string): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       resolve()
       return
     }
-
-    window.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = lang
@@ -75,19 +78,43 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     utterance.onerror = finish
 
     activeUtterance = utterance
-
-    // iOS requiere cancel() + setTimeout para evitar bloqueo del sintetizador.
-    if (isIOS) {
-      window.speechSynthesis.cancel()
-      setTimeout(() => window.speechSynthesis.speak(utterance), 120)
-    } else {
-      window.speechSynthesis.speak(utterance)
-    }
+    window.speechSynthesis.speak(utterance)
   })
+}
+
+function frasesDe(text: string) {
+  const partes = text
+    .split(/(?<=[.!?;])\s+/)
+    .map((parte) => parte.trim())
+    .filter(Boolean)
+  return partes.length > 0 ? partes : [text]
+}
+
+export function speak(text: string, lang = 'es-CO'): Promise<void> {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve()
+
+  const mio = ++turno
+  window.speechSynthesis.cancel()
+  const frases = frasesDe(text)
+
+  const correr = (indice: number): Promise<void> => {
+    if (mio !== turno || indice >= frases.length) return Promise.resolve()
+    const lanzar = () => decir(frases[indice], lang).then(() => {
+      if (mio !== turno || indice >= frases.length - 1) return
+      return new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 160)
+      }).then(() => correr(indice + 1))
+    })
+    if (isIOS && indice === 0) return new Promise((resolve) => setTimeout(resolve, 120)).then(lanzar)
+    return lanzar()
+  }
+
+  return correr(0)
 }
 
 export function stopSpeaking(): void {
   if (typeof window === 'undefined') return
+  turno += 1
   isSpeaking = false
   activeUtterance = null
   window.speechSynthesis?.cancel()
