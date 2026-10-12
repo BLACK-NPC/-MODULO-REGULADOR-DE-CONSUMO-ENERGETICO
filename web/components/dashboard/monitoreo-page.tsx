@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Thermometer, Droplets, Zap, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -251,6 +252,23 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
   })
   const [capa, setCapa] = useState<Capa>(null)
   const [resumenHora, setResumenHora] = useState(() => new Date().getHours())
+  const [menuDia, setMenuDia] = useState(false)
+  const [horaMarcada, setHoraMarcada] = useState<number | null>(null)
+  const ultimoDia = useRef<{ key: string; t: number } | null>(null)
+
+  function elegirDia(key: string) {
+    const ahora = Date.now()
+    const doble = ultimoDia.current?.key === key && ahora - ultimoDia.current.t <= 450
+    ultimoDia.current = { key, t: ahora }
+    setSelectedDay(key)
+    setRangos({ temperatura: 24, humedad: 24, potencia: 24 })
+    if (doble) {
+      setMenuDia(true)
+      return
+    }
+    setMenuDia(false)
+    setHoraMarcada(null)
+  }
 
   const puntos = useMemo(() => puntosDelDia(data.historico?.[selectedDay]), [data.historico, selectedDay])
   const esHoy = selectedDay === hoy
@@ -341,7 +359,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                 <button
             key={dia.key}
             type="button"
-            onClick={() => setSelectedDay(dia.key)}
+            onClick={() => elegirDia(dia.key)}
                   className={cn(
               'h-8 min-w-12 flex-1 rounded-full border text-xs font-medium',
               selectedDay === dia.key ? 'bg-foreground text-background border-foreground' : 'bg-card text-muted-foreground border-border',
@@ -351,6 +369,66 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                 </button>
               ))}
             </div>
+
+      {menuDia ? (
+        <div className="rounded-md border border-border bg-card p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-foreground">
+              {DIAS.find((dia) => dia.key === selectedDay)?.label} · 00:00 a 23:59
+            </p>
+            <button type="button" onClick={() => setMenuDia(false)} className="text-xs text-muted-foreground">
+              Cerrar
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {ORDEN.map((metrica) => {
+              const nombre = metrica === 'temperatura' ? 'Temperatura' : metrica === 'humedad' ? 'Humedad' : 'Potencia'
+              const texto = !visible[metrica] ? 'Mostrar' : separada[metrica] ? 'Unir' : 'Separar'
+              return (
+                <button
+                  key={metrica}
+                  type="button"
+                  onClick={() => (texto === 'Mostrar' ? setVisible((actual) => ({ ...actual, [metrica]: true })) : separar(metrica))}
+                  className="h-11 rounded-md border border-border text-sm font-medium text-foreground"
+                >
+                  {nombre}: {texto}
+                </button>
+              )
+            })}
+          </div>
+          <div>
+            <p className="mb-2 text-xs text-muted-foreground">Hora en la grafica</p>
+            <div className="grid grid-cols-6 sm:grid-cols-12 gap-1">
+              <button
+                type="button"
+                onClick={() => setHoraMarcada(null)}
+                className={cn(
+                  'col-span-6 sm:col-span-12 h-9 rounded-md border text-xs font-medium',
+                  horaMarcada === null ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground',
+                )}
+              >
+                Dia completo
+              </button>
+              {Array.from({ length: 24 }, (_, hora) => (
+                <button
+                  key={hora}
+                  type="button"
+                  onClick={() => setHoraMarcada(hora)}
+                  className={cn(
+                    'h-9 rounded-md border text-xs font-medium',
+                    horaMarcada === hora ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground',
+                  )}
+                >
+                  {String(hora).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          </div>
+          {horaMarcada !== null ? <ResumenMetricas puntos={puntos} hora={horaMarcada} /> : (
+            <p className="text-xs text-muted-foreground">La grafica muestra el dia entero. Elige una hora para marcarla.</p>
+          )}
+        </div>
+      ) : null}
 
       <Card className="bg-card border-border">
         <CardContent className="p-3 space-y-2">
@@ -373,6 +451,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                   <YAxis yAxisId="clima" stroke="#666" domain={[0, 40]} ticks={[0, 10, 20, 30, 40]} width={32} />
                   <YAxis yAxisId="escala" orientation="right" stroke="#666" domain={[0, 100]} width={36} />
                   <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
+                  {horaMarcada !== null ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
                   {enCombinada.includes('potencia') ? (
                     <Line yAxisId="escala" type="monotone" dataKey="potencia" name="POT" stroke={COLORES.potencia} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
@@ -403,6 +482,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
           abierto={detalle[metrica]}
           tempViva={data.temperatura}
           humViva={data.humedad}
+          horaMarcada={horaMarcada}
           onRango={(horas) => setRangos((actual) => ({ ...actual, [metrica]: horas }))}
           onDetalle={() => setDetalle((actual) => ({ ...actual, [metrica]: !actual[metrica] }))}
         />
@@ -522,6 +602,7 @@ function PanelSeparado({
   abierto,
   tempViva,
   humViva,
+  horaMarcada,
   onRango,
   onDetalle,
 }: {
@@ -533,6 +614,7 @@ function PanelSeparado({
   abierto: boolean
   tempViva: number
   humViva: number
+  horaMarcada: number | null
   onRango: (horas: number) => void
   onDetalle: () => void
 }) {
@@ -570,6 +652,7 @@ function PanelSeparado({
               <XAxis dataKey="etiqueta" stroke="#666" />
               <YAxis stroke="#666" width={32} domain={metrica === 'temperatura' ? [0, 40] : [0, 100]} />
               <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} />
+              {horaMarcada !== null ? <ReferenceLine x={String(horaMarcada)} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
               <Line type="monotone" dataKey={metrica} name={titulo} stroke={COLORES[metrica]} strokeWidth={2} dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
