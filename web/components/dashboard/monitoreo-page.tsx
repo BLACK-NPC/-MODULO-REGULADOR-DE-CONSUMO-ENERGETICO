@@ -416,11 +416,11 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
           return (
             <div key={metrica} className="relative rounded-md border border-border bg-card px-3 py-2 min-h-[72px]">
               {menu === metrica ? (
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-card rounded-md">
-                  <button type="button" onClick={() => ocultar(metrica)} className="h-7 px-2 rounded-md border border-border text-[11px] text-muted-foreground">
+                <div className="absolute inset-0 grid grid-cols-2 gap-2 bg-card p-2 rounded-md">
+                  <button type="button" onClick={() => ocultar(metrica)} className="h-full rounded-md border border-border text-sm font-medium text-foreground">
                     {visible[metrica] && sensorActivo[metrica] ? 'Ocultar' : 'Mostrar'}
                   </button>
-                  <button type="button" onClick={() => separar(metrica)} className="h-7 px-2 rounded-md bg-foreground text-background text-[11px]">
+                  <button type="button" onClick={() => separar(metrica)} className="h-full rounded-md bg-foreground text-sm font-medium text-background">
                     {separada[metrica] && visible[metrica] ? 'Unir' : 'Separar'}
                   </button>
               </div>
