@@ -42,6 +42,7 @@ import { ServicioVistas } from '@/components/dashboard/servicio-vistas'
 import { EquipoVistas } from '@/components/dashboard/equipo-vistas'
 import { CentroVoz } from '@/components/dashboard/centro-voz'
 import { AlertasVistas } from '@/components/dashboard/alertas-vistas'
+import { NotificacionesVistas } from '@/components/dashboard/notificaciones-vistas'
 import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_EVENT } from '@/lib/smart-profiles'
 import { activeEquipo, loadEquipo } from '@/lib/page-equipo'
 import { buildVerificacionFalla } from '@/lib/verificacion-falla'
@@ -184,6 +185,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   const [conectVista, setConectVista] = useState<'wifi' | 'firebase'>('wifi')
   const [vozAbierta, setVozAbierta] = useState(false)
   const [alertasAbierta, setAlertasAbierta] = useState(false)
+  const [notificacionesAbierta, setNotificacionesAbierta] = useState(false)
   const [rapidez, setRapidez] = useState(1)
   const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
   const [servicioAbierta, setServicioAbierta] = useState(false)
@@ -219,6 +221,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
       setConectAbierta(pane === 'conectividad')
       setVozAbierta(pane === 'voz')
       setAlertasAbierta(pane === 'alertas')
+      setNotificacionesAbierta(pane === 'notificaciones')
     }
     window.addEventListener('ecopulse-open-pane', openPane)
     return () => window.removeEventListener('ecopulse-open-pane', openPane)
@@ -452,7 +455,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         </CardContent>
       </Card>
       </div>
-      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta ? (
+      ) : !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta && !notificacionesAbierta ? (
         <button
           type="button"
           onClick={() => setMedicionAbierta(true)}
@@ -949,7 +952,15 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         />
       ) : null}
 
-      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta ? (
+      {notificacionesAbierta ? (
+        <NotificacionesVistas
+          data={data}
+          onBack={() => setNotificacionesAbierta(false)}
+          onGo={(pane) => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane }))}
+        />
+      ) : null}
+
+      {!medicionAbierta && !autoAbierta && !servicioAbierta && !equipoAbierta && !sistemaAbierta && !conectAbierta && !vozAbierta && !alertasAbierta && !notificacionesAbierta ? (
       <>
         <button
           type="button"
@@ -1044,6 +1055,18 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">ALERTAS</p>
             <p className="text-xs text-muted-foreground">Estado de senales, fallas e historial</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setNotificacionesAbierta(true)}
+          className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
+        >
+          <Bell className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground">NOTIFICACIONES</p>
+            <p className="text-xs text-muted-foreground">Avisos de falla, consumo y perfil</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
