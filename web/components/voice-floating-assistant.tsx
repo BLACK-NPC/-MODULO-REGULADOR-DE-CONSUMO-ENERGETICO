@@ -102,7 +102,7 @@ export function VoiceFloatingAssistant({
   onCommand,
   lang = 'es-CO',
 }: VoiceFloatingAssistantProps) {
-  const [hidden, setHidden] = useState(false)
+  const [hidden, setHidden] = useState(() => (typeof window === 'undefined' ? false : isFabHidden()))
   const [docked, setDocked] = useState(() => {
     if (typeof window === 'undefined') return true
     return localStorage.getItem(FAB_STORAGE_KEY_DOCKED) !== 'false'
@@ -140,7 +140,13 @@ export function VoiceFloatingAssistant({
     isListening,
     isWakePhase,
     isProcessing,
-  } = useVoiceRecognition({ lang, requireWakeWord: true, onCommand, onSessionEnd: handleSessionEnd })
+  } = useVoiceRecognition({
+    lang,
+    requireWakeWord: true,
+    handsFree: !hidden,
+    onCommand,
+    onSessionEnd: handleSessionEnd,
+  })
 
   useEffect(() => {
     setHidden(isFabHidden())
@@ -208,7 +214,7 @@ export function VoiceFloatingAssistant({
   }, [currentPage, clearResponse])
 
   useEffect(() => {
-    if (isListening || isProcessing || transcript) {
+    if (isProcessing || transcript || (isListening && !isWakePhase)) {
       setBubbleVisible(true)
     }
   }, [isListening, isProcessing, transcript])

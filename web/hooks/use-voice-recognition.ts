@@ -25,6 +25,8 @@ interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
   /** Si true, la primera frase debe ser "Hey Eco" antes de aceptar comandos. */
   requireWakeWord?: boolean
+  /** Arranca la escucha al abrir la pagina, sin pulsar el microfono. */
+  handsFree?: boolean
   onCommand: (
     intent: VoiceIntent,
     signal?: AbortSignal
@@ -35,6 +37,7 @@ interface UseVoiceRecognitionOptions {
 export function useVoiceRecognition({
   lang = 'es-CO',
   requireWakeWord = false,
+  handsFree = false,
   onCommand,
   onSessionEnd,
 }: UseVoiceRecognitionOptions) {
@@ -55,6 +58,11 @@ export function useVoiceRecognition({
   const commandAbortRef = useRef<AbortController | null>(null)
   const commandGenerationRef = useRef(0)
   const pendingTranscriptRef = useRef('')
+  const handsFreeRef = useRef(handsFree)
+  const fromGestureRef = useRef(false)
+  const pausedByUserRef = useRef(false)
+  const beginRef = useRef<(fromGesture: boolean) => void>(() => {})
+  handsFreeRef.current = handsFree
 
   useEffect(() => {
     onCommandRef.current = onCommand
@@ -325,6 +333,14 @@ export function useVoiceRecognition({
         return
       }
 
+      if ((event.error === 'not-allowed' || event.error === 'service-not-allowed') && !fromGestureRef.current) {
+        sessionActiveRef.current = false
+        busyRef.current = false
+        pendingTranscriptRef.current = ''
+        setStatus('idle')
+        return
+      }
+
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setErrorMsg('Permiso de microfono denegado.')
       } else {
@@ -356,8 +372,10 @@ export function useVoiceRecognition({
     }
 
     recognitionRef.current = recognition
+    const armTimer = window.setTimeout(() => beginRef.current(false), 500)
 
     return () => {
+      window.clearTimeout(armTimer)
       sessionActiveRef.current = false
       clearInactivityTimer()
       clearRestartTimer()
@@ -375,15 +393,12 @@ export function useVoiceRecognition({
     lang,
   ])
 
-  const startListening = useCallback(() => {
+  const beginSession = useCallback((fromGesture: boolean) => {
+    if (!fromGesture && (pausedByUserRef.current || !handsFreeRef.current)) return
     const recognition = recognitionRef.current
-    if (!recognition || status === 'unsupported') return
+    if (!recognition || sessionActiveRef.current) return
 
-    if (sessionActiveRef.current) {
-      stopSession()
-      return
-    }
-
+    fromGestureRef.current = fromGesture
     sessionActiveRef.current = true
     busyRef.current = false
     pendingTranscriptRef.current = ''
@@ -401,7 +416,44 @@ export function useVoiceRecognition({
       sessionActiveRef.current = false
       setStatus('idle')
     }
-  }, [status, stopSession, scheduleInactivityTimeout, requireWakeWord])
+  }, [requireWakeWord, scheduleInactivityTimeout])
+  beginRef.current = beginSession
+
+  const startListening = useCallback(() => {
+    if (status === 'unsupported') return
+
+    if (sessionActiveRef.current) {
+      pausedByUserRef.current = true
+      stopSession()
+      return
+    }
+
+    pausedByUserRef.current = false
+    beginSession(true)
+  }, [status, stopSession, beginSession])
+
+  useEffect(() => {
+    if (handsFree) return
+    if (sessionActiveRef.current) stopSession()
+  }, [handsFree, stopSession])
+
+  useEffect(() => {
+    if (!handsFree) return
+
+    const tryArm = () => {
+      if (document.visibilityState === 'hidden' || pausedByUserRef.current) return
+      beginSession(false)
+    }
+
+    const timer = window.setTimeout(tryArm, 400)
+    document.addEventListener('visibilitychange', tryArm)
+    window.addEventListener('pageshow', tryArm)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', tryArm)
+      window.removeEventListener('pageshow', tryArm)
+    }
+  }, [handsFree, beginSession])
 
   const stopListening = useCallback(() => {
     stopSession()
