@@ -74,7 +74,7 @@ export function AlertasVistas({
   data: AVCData
   isDemo: boolean
   lastHeartbeatAt: number | null
-  onBack: () => void
+  onBack?: () => void
   onGo: (pane: Pane) => void
 }) {
   const [tab, setTab] = useState<'res' | 'his'>('res')
@@ -138,11 +138,15 @@ export function AlertasVistas({
   const HeroIcon = hero.tone === 'ok' ? Check : AlertTriangle
 
   return (
-    <div className="space-y-3">
-      <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <ArrowLeft className="w-4 h-4" />
-        Configuraciones
-      </button>
+    <div className="space-y-4">
+      {onBack ? (
+        <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <ArrowLeft className="w-4 h-4" />
+          Configuraciones
+        </button>
+      ) : (
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Alertas</h1>
+      )}
 
       <div
         role="status"

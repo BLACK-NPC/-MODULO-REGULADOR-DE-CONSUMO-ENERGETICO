@@ -6,7 +6,7 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { HomePage } from '@/components/dashboard/home-page'
 import { MonitoreoPage } from '@/components/dashboard/monitoreo-page'
 import { ConfiguracionesPage } from '@/components/dashboard/configuraciones-page'
-import { AlertasPage } from '@/components/dashboard/alertas-page'
+import { AlertasVistas } from '@/components/dashboard/alertas-vistas'
 import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
 import { AirePage } from '@/components/dashboard/aire-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
@@ -237,13 +237,13 @@ export default function Dashboard() {
         )
       case 'alertas':
         return (
-          <AlertasPage
+          <AlertasVistas
             data={data}
             isDemo={isDemo}
             lastHeartbeatAt={lastHeartbeatAt}
             onGo={(pane) => {
               setCurrentPage('configuraciones')
-              window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane }))
+              window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane })), 350)
             }}
           />
         )
