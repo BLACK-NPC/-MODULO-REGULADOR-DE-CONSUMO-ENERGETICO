@@ -452,13 +452,15 @@ export function VoiceFloatingAssistant({
       className={cn(
         'relative flex items-center justify-center rounded-full border-none cursor-grab active:cursor-grabbing outline-none p-0',
         'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 shadow-lg shadow-emerald-900/40',
-        'transition-transform duration-200',
-        (isListening || isProcessing) &&
-          'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950'
+        !dockedHere && 'transition-transform duration-200',
+        (isListening || isProcessing) && !dockedHere &&
+          'scale-110 ring-4 ring-emerald-400/50 ring-offset-2 ring-offset-gray-950',
+        (isListening || isProcessing) && dockedHere &&
+          'ring-2 ring-emerald-300/70'
       )}
     >
       <Mic size={22} className="text-white relative z-10" />
-      {isListening && (
+      {isListening && !dockedHere && (
         <>
           <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" aria-hidden />
           <span

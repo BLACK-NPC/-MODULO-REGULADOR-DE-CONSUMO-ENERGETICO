@@ -243,7 +243,7 @@ export function HomePage({
             </button>
             <div
               id="voice-mic-dock"
-              className="h-14 w-14 flex-none rounded-full outline outline-1 -outline-offset-1 outline-dashed outline-[#3ddc6a]/50"
+              className="h-14 w-14 flex-none overflow-hidden rounded-full outline outline-1 -outline-offset-1 outline-dashed outline-[#3ddc6a]/50 [overflow-anchor:none]"
             />
           </div>
         </div>
