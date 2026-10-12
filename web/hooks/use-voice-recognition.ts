@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
 import { speak, stopSpeaking } from '@/lib/speech-synthesis'
-import { splitWake, stripWakeWords } from '@/lib/wake-word'
+import { detectWakeWord, fixEco, splitWake, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
   | 'idle'
@@ -258,7 +258,14 @@ export function useVoiceRecognition({
     recognition.lang = lang
     recognition.continuous = false
     recognition.interimResults = true
-    recognition.maxAlternatives = 1
+    recognition.maxAlternatives = 5
+
+    const GrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList
+    if (GrammarList) {
+      const grammars = new GrammarList()
+      grammars.addFromString('#JSGF V1.0; grammar eco; public <wake> = hey eco | eco | hey echo | echo;', 1)
+      recognition.grammars = grammars
+    }
 
     recognition.onstart = () => {
       if (!sessionActiveRef.current) return
@@ -273,8 +280,14 @@ export function useVoiceRecognition({
       let interim = ''
       let allFinal = ''
       for (let i = 0; i < event.results.length; i++) {
-        const text = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
+        const result = event.results[i]
+        let text = result[0]?.transcript ?? ''
+        for (let alt = 1; alt < result.length; alt++) {
+          const option = result[alt]?.transcript ?? ''
+          if (option && detectWakeWord(option) && !detectWakeWord(text)) text = option
+        }
+        text = fixEco(text)
+        if (result.isFinal) {
           allFinal += text
         } else if (i >= event.resultIndex) {
           interim += text

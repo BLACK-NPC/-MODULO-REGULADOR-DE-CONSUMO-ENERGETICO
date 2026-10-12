@@ -26,11 +26,16 @@ interface SpeechRecognitionEvent extends Event {
   readonly results: SpeechRecognitionResultList
 }
 
+interface SpeechGrammarList {
+  addFromString(string: string, weight?: number): void
+}
+
 interface SpeechRecognition extends EventTarget {
   lang: string
   continuous: boolean
   interimResults: boolean
   maxAlternatives: number
+  grammars: SpeechGrammarList
   start(): void
   stop(): void
   abort(): void
@@ -45,7 +50,14 @@ declare var SpeechRecognition: {
   new (): SpeechRecognition
 }
 
+declare var SpeechGrammarList: {
+  prototype: SpeechGrammarList
+  new (): SpeechGrammarList
+}
+
 interface Window {
   SpeechRecognition: typeof SpeechRecognition
   webkitSpeechRecognition: typeof SpeechRecognition
+  SpeechGrammarList: typeof SpeechGrammarList
+  webkitSpeechGrammarList: typeof SpeechGrammarList
 }
