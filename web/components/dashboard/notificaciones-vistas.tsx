@@ -1,11 +1,15 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, BarChart3, Clock, Zap } from 'lucide-react'
+import { ArrowLeft, BarChart3, Clock, Sparkles, Zap } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { loadServicio, saveServicio } from '@/lib/page-servicio'
-import { currentProfile, loadSmartProfileStore } from '@/lib/smart-profiles'
+import { currentProfile, loadSmartProfileStore, profileCommandFields, saveSmartProfileStore } from '@/lib/smart-profiles'
 import { hourlySeries, kwh, statSegments } from '@/lib/voice-history'
+import { fetchPronostico, type Pronostico } from '@/lib/weather'
+import { LEAD_POR_DEFECTO, aplicarAccion, generarRecomendaciones, type Reco, type VentanaClima } from '@/lib/recomendaciones-clima'
+import { sendRemoteCommand } from '@/lib/firebase-remote-command'
 import type { AVCData, FaultRecord } from '@/hooks/use-avc-data'
 
 const NAMES = ['Temperatura', 'Humedad', 'Potencia', 'WiFi', 'Presencia', 'Nube', 'Cerebro']
@@ -19,6 +23,32 @@ const HINTS = [
   'Revisa TX, RX y GND entre la pantalla y el cerebro.',
 ]
 const OMITIR = 'ecopulse-notif-omitir'
+const CLAVE_CIUDAD = 'ecopulse-reco-ciudad'
+const CLAVE_LEAD = 'ecopulse-reco-lead'
+const CLAVE_RESPUESTAS = 'ecopulse-reco-respuestas'
+
+function cuerpoReco(reco: Reco, ventana: VentanaClima | null, setpoint: number) {
+  if (reco.id === 'ahorro' && ventana) {
+    return `Maxima ${ventana.maxima} C en tu horario, bajo el objetivo de ${setpoint} C.`
+  }
+  if (reco.id === 'adelanto' && ventana) {
+    return `Hacia las ${String(ventana.horaMaxima).padStart(2, '0')}:00 se esperan ${ventana.maxima} C.`
+  }
+  if (reco.id === 'humedad' && ventana) {
+    return `Hasta ${ventana.humedadMaxima} % de humedad durante tu horario.`
+  }
+  if (ventana) {
+    return `Entre ${ventana.minima} y ${ventana.maxima} C en tu horario.`
+  }
+  return 'Hoy tu perfil no tiene horario. El equipo puede descansar.'
+}
+
+function botonReco(reco: Reco) {
+  if (reco.accion?.tipo === 'ahorro') return 'Ahorrar'
+  if (reco.accion?.tipo === 'adelanto') return 'Adelantar'
+  if (reco.accion?.tipo === 'preventiva') return 'Activar'
+  return 'Aplicar'
+}
 
 function minutos(start: number) {
   if (start < 1700000000) return null
@@ -114,19 +144,55 @@ export function NotificacionesVistas({
   data,
   onBack,
   onGo,
+  onOpenDatos,
 }: {
   data: AVCData
   onBack: () => void
   onGo: (pane: 'alertas' | 'perfiles' | 'servicio') => void
+  onOpenDatos?: () => void
 }) {
   const [ahora, setAhora] = useState(() => new Date())
   const [omitido, setOmitido] = useState('')
   const [tareaHecha, setTareaHecha] = useState(false)
+  const [pron, setPron] = useState<Pronostico | null>(null)
+  const [recoEstado, setRecoEstado] = useState('cargando')
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({})
+  const [aplicando, setAplicando] = useState('')
 
   useEffect(() => {
     const id = window.setInterval(() => setAhora(new Date()), 30000)
     setOmitido(window.localStorage.getItem(OMITIR) ?? '')
-    return () => window.clearInterval(id)
+    try {
+      setRespuestas(JSON.parse(window.localStorage.getItem(CLAVE_RESPUESTAS) ?? '{}') as Record<string, string>)
+    } catch {
+      setRespuestas({})
+    }
+    const ciudad = window.localStorage.getItem(CLAVE_CIUDAD)?.trim() ?? ''
+    if (!ciudad) {
+      setRecoEstado('sin-ciudad')
+      return () => window.clearInterval(id)
+    }
+    const perfil = currentProfile(loadSmartProfileStore())
+    if (!perfil) {
+      setRecoEstado('sin-perfil')
+      return () => window.clearInterval(id)
+    }
+    let vivo = true
+    setRecoEstado('cargando')
+    void fetchPronostico(ciudad)
+      .then((resultado) => {
+        if (vivo) {
+          setPron(resultado)
+          setRecoEstado('listo')
+        }
+      })
+      .catch(() => {
+        if (vivo) setRecoEstado('error')
+      })
+    return () => {
+      vivo = false
+      window.clearInterval(id)
+    }
   }, [])
 
   const abierta = data.diag.historial.find((row) => row.end === 0) ?? null
@@ -187,6 +253,32 @@ export function NotificacionesVistas({
     : ''
   const perfilCuerpo = encendido ? `${encendido.perfil.daysMask === 0x1f ? 'Lunes a viernes' : 'Segun su horario'} · ${encendido.perfil.setpointC} °C.` : ''
 
+  const perfilActivo = currentProfile(loadSmartProfileStore())
+  const leadGuardado = Number(typeof window !== 'undefined' ? window.localStorage.getItem(CLAVE_LEAD) : '')
+  const lead = Number.isFinite(leadGuardado) && leadGuardado > 0 ? leadGuardado : LEAD_POR_DEFECTO
+  const resultado = pron && perfilActivo ? generarRecomendaciones(perfilActivo, pron, lead) : null
+  const recomendaciones = resultado?.items ?? []
+  const fechaReco = pron ? pron.publicado.slice(0, 10) : ''
+
+  async function aplicarReco(reco: Reco, clave: string) {
+    if (!reco.accion || aplicando) return
+    const store = loadSmartProfileStore()
+    const antes = store.slots[store.activeIndex]
+    if (!antes) return
+    setAplicando(clave)
+    const despues = aplicarAccion(antes, reco.accion)
+    const slots = store.slots.slice()
+    slots[store.activeIndex] = despues
+    saveSmartProfileStore({ slots, activeIndex: store.activeIndex })
+    const siguiente = { ...respuestas, [clave]: 'aplicada' }
+    window.localStorage.setItem(CLAVE_RESPUESTAS, JSON.stringify(siguiente))
+    setRespuestas(siguiente)
+    const respuesta = await sendRemoteCommand(profileCommandFields(despues, true))
+    if (respuesta.ok) toast.success('Listo. El cambio ya esta en tu equipo.')
+    else toast.error(`Guardado en la pagina, pero el equipo no lo confirmo. ${respuesta.mensaje}`)
+    setAplicando('')
+  }
+
   return (
     <div className="space-y-5">
       <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -211,6 +303,30 @@ export function NotificacionesVistas({
             ) : (
               <p className="px-2 text-sm text-muted-foreground">No hay una falla abierta.</p>
             )}
+            {recomendaciones.length > 0
+              ? recomendaciones.map((reco) => (
+                  <Nota
+                    key={reco.id}
+                    color="bg-[#f5c16c]"
+                    icon={<Sparkles className="h-5 w-5" />}
+                    cuando="hoy"
+                    titulo={reco.titulo}
+                    cuerpo={cuerpoReco(reco, resultado?.ventana ?? null, perfilActivo?.setpointC ?? 0)}
+                  />
+                ))
+              : (
+                  <p className="px-2 text-sm text-muted-foreground">
+                    {recoEstado === 'cargando'
+                      ? 'Consultando la recomendacion del dia...'
+                      : recoEstado === 'sin-ciudad'
+                        ? 'Falta la ciudad para recomendar la programacion.'
+                        : recoEstado === 'sin-perfil'
+                          ? 'Falta un perfil activo para recomendar la programacion.'
+                          : recoEstado === 'error'
+                            ? 'No pude consultar el clima para la recomendacion.'
+                            : 'Sin recomendacion de programacion para hoy.'}
+                  </p>
+                )}
             {hoy ? (
               <Nota color="bg-[#6cb8ff]" icon={<BarChart3 className="h-5 w-5" />} cuando="hoy" titulo={consumoTitulo} cuerpo={consumoCuerpo} />
             ) : (
@@ -247,6 +363,27 @@ export function NotificacionesVistas({
                 ]}
               />
             ) : null}
+            {recomendaciones.map((reco) => {
+              const clave = `${fechaReco}-${reco.id}`
+              const estado = respuestas[clave]
+              const acciones = reco.accion && !estado
+                ? [
+                    { label: aplicando === clave ? 'Aplicando' : botonReco(reco), primary: true, onClick: () => void aplicarReco(reco, clave) },
+                    { label: 'Ver detalle', onClick: () => onOpenDatos?.() },
+                  ]
+                : [{ label: 'Ver detalle', primary: true, onClick: () => onOpenDatos?.() }]
+              return (
+                <Nota
+                  key={clave}
+                  color="bg-[#f5c16c]"
+                  icon={<Sparkles className="h-5 w-5" />}
+                  cuando="hoy"
+                  titulo={reco.titulo}
+                  cuerpo={cuerpoReco(reco, resultado?.ventana ?? null, perfilActivo?.setpointC ?? 0)}
+                  acciones={acciones}
+                />
+              )
+            })}
             {encendido ? (
               <Nota
                 color="bg-[#3ddc6a]"
@@ -267,7 +404,7 @@ export function NotificacionesVistas({
                 ]}
               />
             ) : null}
-            {!abierta && !encendido ? <p className="text-sm text-muted-foreground">No hay acciones pendientes.</p> : null}
+            {!abierta && !encendido && recomendaciones.length === 0 ? <p className="text-sm text-muted-foreground">No hay acciones pendientes.</p> : null}
           </div>
         </section>
       </div>
@@ -276,7 +413,7 @@ export function NotificacionesVistas({
         <h2 className="text-lg font-semibold text-foreground">Como se lee cada aviso</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            ['Icono con simbolo', 'Rayo rojo es una falla, barras azules el resumen del dia y reloj verde la automatizacion.'],
+            ['Icono con simbolo', 'Rayo rojo es una falla, chispa ambar la recomendacion del dia, barras azules el resumen y reloj verde la automatizacion.'],
             ['Titulo en una linea', 'El dato clave va en el titulo, por ejemplo la duracion o los kWh.'],
             ['Cuerpo de 1 a 2 lineas', 'Un solo dato extra. El detalle largo queda dentro de la app.'],
             ['Acciones en botones', 'Crear tarea, ver detalle, omitir hoy o cambiar, sin escribirlo en el texto.'],

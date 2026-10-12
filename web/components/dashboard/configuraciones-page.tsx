@@ -53,7 +53,7 @@ interface ConfiguracionesPageProps {
   onUpdate: (path: string, value: unknown) => Promise<HmiCommandResult>
   isDemo?: boolean
   lastHeartbeatAt?: number | null
-  onNavigate?: (page: 'home' | 'aire') => void
+  onNavigate?: (page: 'home' | 'aire' | 'datos-externos') => void
 }
 
 const SP_PIN = '2011'
@@ -957,6 +957,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           data={data}
           onBack={() => setNotificacionesAbierta(false)}
           onGo={(pane) => window.dispatchEvent(new CustomEvent('ecopulse-open-pane', { detail: pane }))}
+          onOpenDatos={() => onNavigate?.('datos-externos')}
         />
       ) : null}
 
@@ -1066,7 +1067,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <Bell className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">NOTIFICACIONES</p>
-            <p className="text-xs text-muted-foreground">Avisos de falla, consumo y perfil</p>
+            <p className="text-xs text-muted-foreground">Avisos de falla, recomendacion, consumo y perfil</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>
