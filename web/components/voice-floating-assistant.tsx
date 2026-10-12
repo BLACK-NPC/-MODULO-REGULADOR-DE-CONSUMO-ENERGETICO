@@ -141,7 +141,7 @@ export function VoiceFloatingAssistant({
     isListening,
     isWakePhase,
     isProcessing,
-  } = useVoiceRecognition({ lang, onCommand, onSessionEnd: handleSessionEnd })
+  } = useVoiceRecognition({ lang, requireWakeWord: true, onCommand, onSessionEnd: handleSessionEnd })
 
   useEffect(() => {
     setHidden(isFabHidden())
@@ -478,9 +478,9 @@ export function VoiceFloatingAssistant({
                 <Waves className="h-4 w-4 text-emerald-400 animate-pulse shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-emerald-300">
-                    {isWakePhase ? 'Di "Hola", "Hey" u "OK"...' : 'Escuchando...'}
+                    {isWakePhase ? 'Di "Hey Eco"...' : 'Escuchando...'}
                   </p>
-                  {transcript && !isWakePhase && (
+                  {transcript && (
                     <p className="text-sm text-white/80 mt-1 truncate">{transcript}</p>
                   )}
                 </div>

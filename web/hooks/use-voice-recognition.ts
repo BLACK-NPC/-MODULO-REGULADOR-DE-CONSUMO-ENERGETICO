@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
 import { speak, stopSpeaking } from '@/lib/speech-synthesis'
-import { detectWakeWord, stripWakeWords } from '@/lib/wake-word'
+import { splitWake, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
   | 'idle'
@@ -23,7 +23,7 @@ const RESTART_DELAY_MS = 300
 
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
-  /** Si true, la primera frase debe contener una palabra clave (hey/ok/hola). */
+  /** Si true, la primera frase debe ser "Hey Eco" antes de aceptar comandos. */
   requireWakeWord?: boolean
   onCommand: (
     intent: VoiceIntent,
@@ -104,7 +104,7 @@ export function useVoiceRecognition({
 
   const scheduleInactivityTimeout = useCallback(() => {
     clearInactivityTimer()
-    if (!sessionActiveRef.current) return
+    if (!sessionActiveRef.current || wakePhaseRef.current) return
 
     inactivityTimerRef.current = setTimeout(() => {
       if (!sessionActiveRef.current || busyRef.current) return
@@ -155,25 +155,26 @@ export function useVoiceRecognition({
 
   const processFinalTranscript = useCallback(
     async (finalText: string) => {
-      // --- Fase wake word ---
+      let commandText = stripWakeWords(finalText) || finalText
+
       if (wakePhaseRef.current) {
-        const wakeWord = detectWakeWord(finalText)
-        if (!wakeWord) {
-          // No era palabra clave: ignorar y seguir escuchando.
-          scheduleInactivityTimeout()
+        const heard = splitWake(finalText)
+        if (!heard.woke) {
+          busyRef.current = false
           tryStartListening()
           return
         }
-        // Palabra clave detectada: salir de fase wake, pasar a comando.
         wakePhaseRef.current = false
-        setStatus('listening')
-        scheduleInactivityTimeout()
-        tryStartListening(POST_TTS_DELAY_MS)
-        return
+        if (!heard.command) {
+          setStatus('speaking')
+          clearInactivityTimer()
+          await speak('Te escucho.', lang)
+          if (sessionActiveRef.current) resumeListeningAfterSpeech()
+          else busyRef.current = false
+          return
+        }
+        commandText = heard.command
       }
-
-      // Quitar palabras clave que el usuario incluyera junto al comando.
-      const commandText = stripWakeWords(finalText) || finalText
 
       const generation = commandGenerationRef.current + 1
       commandGenerationRef.current = generation
@@ -239,7 +240,7 @@ export function useVoiceRecognition({
 
       resumeListeningAfterSpeech()
     },
-    [clearInactivityTimer, lang, resumeListeningAfterSpeech, scheduleInactivityTimeout, tryStartListening]
+    [clearInactivityTimer, lang, resumeListeningAfterSpeech, tryStartListening]
   )
 
   useEffect(() => {
@@ -261,7 +262,7 @@ export function useVoiceRecognition({
 
     recognition.onstart = () => {
       if (!sessionActiveRef.current) return
-      setStatus('listening')
+      setStatus(wakePhaseRef.current ? 'wake' : 'listening')
       setErrorMsg('')
       scheduleInactivityTimeout()
     }

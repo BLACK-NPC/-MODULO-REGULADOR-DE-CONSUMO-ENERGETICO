@@ -1,6 +1,6 @@
-/** Palabras clave en espanol e ingles para activar el modo de comando. */
-export const WAKE_WORDS = ['hey', 'ok', 'okay', 'hola', 'oye'] as const
-export type WakeWord = (typeof WAKE_WORDS)[number]
+/** Frase para empezar a escuchar: "Hey Eco". El reconocedor a veces escribe echo o eko. */
+const HEY = new Set(['hey', 'ei', 'ey'])
+const ECO = new Set(['eco', 'echo', 'eko', 'ego', 'ecco'])
 
 function tokenize(text: string): string[] {
   return text
@@ -12,27 +12,34 @@ function tokenize(text: string): string[] {
     .filter(Boolean)
 }
 
-/**
- * Detecta si el texto contiene una palabra clave por coincidencia de token completo.
- * Devuelve la palabra encontrada o null.
- */
-export function detectWakeWord(text: string): WakeWord | null {
-  if (!text) return null
-  const tokens = tokenize(text)
-  for (const word of WAKE_WORDS) {
-    if (tokens.includes(word)) return word
+function wakeAt(tokens: string[]): number {
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (HEY.has(tokens[i]) && ECO.has(tokens[i + 1])) return i
   }
-  return null
+  return -1
+}
+
+/** true si la frase contiene "Hey Eco" (o una transcripcion cercana). */
+export function detectWakeWord(text: string): 'hey eco' | null {
+  if (!text) return null
+  return wakeAt(tokenize(text)) >= 0 ? 'hey eco' : null
 }
 
 /**
- * Elimina palabras clave del inicio del texto para dejar solo el comando.
- * Ejemplo: "hey enciende el motor" → "enciende el motor"
+ * Quita "Hey Eco" del inicio y devuelve el comando que venia despues.
+ * "hey eco enciende el motor" → "enciende el motor". Si no hay frase, devuelve el texto normalizado.
  */
 export function stripWakeWords(text: string): string {
   const tokens = tokenize(text)
-  while (tokens.length > 0 && (WAKE_WORDS as readonly string[]).includes(tokens[0])) {
-    tokens.shift()
-  }
+  const at = wakeAt(tokens)
+  if (at === 0) return tokens.slice(2).join(' ').trim()
   return tokens.join(' ').trim()
+}
+
+/** Separa la frase de activacion del comando dicho en la misma frase. */
+export function splitWake(text: string): { woke: boolean; command: string } {
+  const tokens = tokenize(text)
+  const at = wakeAt(tokens)
+  if (at < 0) return { woke: false, command: '' }
+  return { woke: true, command: tokens.slice(at + 2).join(' ').trim() }
 }

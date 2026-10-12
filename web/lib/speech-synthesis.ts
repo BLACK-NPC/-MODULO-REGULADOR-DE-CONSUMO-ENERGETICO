@@ -1,6 +1,7 @@
 let activeUtterance: SpeechSynthesisUtterance | null = null
 let isSpeaking = false
-let speechRate = 0.95
+let speechRate = 0.9
+const speechPitch = 0.82
 
 const isIOS =
   typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -16,13 +17,19 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   preloadVoices()
 }
 
+const MALE_NAME = /\b(pablo|alvaro|raul|jorge|diego|enrique|carlos|andres|juan|miguel|antonio|male|hombre)\b/i
+const FEMALE_NAME = /\b(helena|sabina|laura|elvira|monica|paulina|sofia|lucia|maria|elena|female|mujer)\b/i
+
 function pickSpanishVoice(): SpeechSynthesisVoice | undefined {
   if (typeof window === 'undefined' || !window.speechSynthesis) return undefined
-  const voices = window.speechSynthesis.getVoices()
-  // Prefiere voz local (no online) en espanol para menor latencia.
+  const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('es'))
+  const males = voices.filter((v) => MALE_NAME.test(v.name) && !FEMALE_NAME.test(v.name))
   return (
-    voices.find((v) => v.lang.startsWith('es') && v.localService) ??
-    voices.find((v) => v.lang.startsWith('es'))
+    males.find((v) => v.lang.toLowerCase().startsWith('es-co') && v.localService) ??
+    males.find((v) => v.localService) ??
+    males[0] ??
+    voices.find((v) => v.localService) ??
+    voices[0]
   )
 }
 
@@ -52,6 +59,7 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = lang
     utterance.rate = speechRate
+    utterance.pitch = speechPitch
 
     const voice = pickSpanishVoice()
     if (voice) utterance.voice = voice

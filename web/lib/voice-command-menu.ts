@@ -108,7 +108,8 @@ export const VOICE_COMMAND_GROUPS = [
   {
     label: 'Voz',
     commands: [
-      { cmd: 'Hola', desc: 'Inicia la sesion de voz' },
+      { cmd: 'Hey Eco', desc: 'Despierta al asistente despues de tocar el microfono' },
+      { cmd: 'Hola', desc: 'Saludo, una vez que ya esta escuchando' },
       { cmd: 'Ayuda', desc: 'Escucha que puedes decir' },
       { cmd: 'Mas rapido', desc: 'Aumenta velocidad de voz' },
       { cmd: 'Mas lento', desc: 'Reduce velocidad de voz' },
