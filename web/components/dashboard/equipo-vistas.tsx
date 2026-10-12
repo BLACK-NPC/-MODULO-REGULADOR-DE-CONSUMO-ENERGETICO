@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Crosshair, Factory, List, SlidersHorizontal } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import {
@@ -19,11 +19,11 @@ import {
 
 type Vista = 'perfil' | 'limites' | 'calibracion' | 'lista'
 
-const NAV: { id: Vista; label: string }[] = [
-  { id: 'perfil', label: 'Perfil' },
-  { id: 'limites', label: 'Limites' },
-  { id: 'calibracion', label: 'Calibr.' },
-  { id: 'lista', label: 'Lista' },
+const NAV: { id: Vista; label: string; detail: string; icon: typeof Factory; color: string }[] = [
+  { id: 'perfil', label: 'Perfil', detail: 'Modelo y especificaciones', icon: Factory, color: 'text-muted-foreground' },
+  { id: 'limites', label: 'Limites', detail: 'Recomendado, configurado y de fabrica', icon: SlidersHorizontal, color: 'text-amber-400' },
+  { id: 'calibracion', label: 'Calibracion', detail: 'Iniciar y detener en el equipo', icon: Crosshair, color: 'text-sky-400' },
+  { id: 'lista', label: 'Lista', detail: 'Equipos guardados en el HMI', icon: List, color: 'text-muted-foreground' },
 ]
 
 export function EquipoVistas({
@@ -106,7 +106,7 @@ export function EquipoVistas({
     <div className="space-y-3">
       <button type="button" onClick={onBack} className="flex items-center gap-2 text-sm font-medium text-foreground">
         <ArrowLeft className="w-4 h-4" />
-        Equipo
+        Configuraciones
       </button>
       <Card className="bg-card border-border">
         <CardHeader>
@@ -115,26 +115,34 @@ export function EquipoVistas({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-4 gap-1">
-            {NAV.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  if (item.id !== 'calibracion') {
-                    setCalCorre(false)
-                    setCalEstado('Detenida - toca Iniciar')
-                  }
-                  onVista(item.id)
-                }}
-                className={cn(
-                  'h-8 rounded-md border text-xs font-medium',
-                  vista === item.id ? 'bg-foreground text-background border-foreground' : 'border-border text-foreground',
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+            {NAV.map((item) => {
+              const Icon = item.icon
+              const activo = vista === item.id
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (item.id !== 'calibracion') {
+                      setCalCorre(false)
+                      setCalEstado('Detenida - toca Iniciar')
+                    }
+                    onVista(item.id)
+                  }}
+                  className={cn(
+                    'flex items-start gap-2 rounded-md border px-2 py-2 text-left',
+                    activo ? 'bg-foreground text-background border-foreground' : 'border-border text-foreground',
+                  )}
+                >
+                  <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', activo ? 'text-background' : item.color)} />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium">{item.label}</span>
+                    <span className={cn('block text-[10px] leading-snug', activo ? 'text-background/70' : 'text-muted-foreground')}>{item.detail}</span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
           {vista === 'perfil' ? (

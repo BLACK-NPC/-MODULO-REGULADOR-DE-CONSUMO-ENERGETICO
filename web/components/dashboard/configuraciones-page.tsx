@@ -29,7 +29,6 @@ import {
   Wifi,
   Database,
   SlidersHorizontal,
-  Crosshair,
   List,
   AlertTriangle,
   Search,
@@ -189,7 +188,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   const [alertasAbierta, setAlertasAbierta] = useState(false)
   const [notificacionesAbierta, setNotificacionesAbierta] = useState(false)
   const [rapidez, setRapidez] = useState(1)
-  const [equipoVista, setEquipoVista] = useState<'panel' | 'perfil' | 'limites' | 'calibracion' | 'lista'>('panel')
+  const [equipoVista, setEquipoVista] = useState<'perfil' | 'limites' | 'calibracion' | 'lista'>('perfil')
   const [servicioAbierta, setServicioAbierta] = useState(false)
   const [servicioVista, setServicioVista] = useState<
     'panel' | 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen' | 'verificacion'
@@ -224,7 +223,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
       setServicioAbierta(pane === 'servicio')
       if (pane === 'servicio') setServicioVista('panel')
       setEquipoAbierta(pane === 'equipo')
-      if (pane === 'equipo') setEquipoVista('panel')
+      if (pane === 'equipo') setEquipoVista('perfil')
       setSistemaAbierta(pane === 'sistema')
       setDatosAbierta(false)
       setConectAbierta(pane === 'conectividad')
@@ -759,75 +758,10 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         />
       ) : null}
 
-      {equipoAbierta && equipoVista === 'panel' ? (
-        <div className="space-y-3">
-          <button type="button" onClick={() => setEquipoAbierta(false)} className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <ArrowLeft className="w-4 h-4" />
-            Configuraciones
-          </button>
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg text-foreground">PERFIL DEL EQUIPO</CardTitle>
-              <p className="text-xs text-muted-foreground">Perfil, limites, calibracion y lista</p>
-            </CardHeader>
-            <CardContent className="p-0">
-              <button
-                type="button"
-                onClick={() => setEquipoVista('perfil')}
-                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
-              >
-                <Factory className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">Perfil</p>
-                  <p className="text-xs text-muted-foreground">Modelo y especificaciones</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setEquipoVista('limites')}
-                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">Limites</p>
-                  <p className="text-xs text-muted-foreground">Recomendado, configurado y de fabrica</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setEquipoVista('calibracion')}
-                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
-              >
-                <Crosshair className="w-4 h-4 text-sky-400 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">Calibracion</p>
-                  <p className="text-xs text-muted-foreground">Iniciar y detener en el equipo</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setEquipoVista('lista')}
-                className="w-full text-left border-t border-border px-4 py-3 flex items-center gap-3 hover:bg-secondary/40"
-              >
-                <List className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">Lista</p>
-                  <p className="text-xs text-muted-foreground">Equipos guardados en el HMI</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {equipoAbierta && equipoVista !== 'panel' ? (
+      {equipoAbierta ? (
         <EquipoVistas
           vista={equipoVista}
-          onBack={() => setEquipoVista('panel')}
+          onBack={() => setEquipoAbierta(false)}
           onVista={setEquipoVista}
           lecturas={{
             temp: data.temperatura,
@@ -1068,7 +1002,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
         <button
           type="button"
           onClick={() => {
-            setEquipoVista('panel')
+            setEquipoVista('perfil')
             setEquipoAbierta(true)
           }}
           className="w-full text-left rounded-lg border border-border bg-card px-4 py-4 flex items-center gap-3 hover:bg-secondary/40"
