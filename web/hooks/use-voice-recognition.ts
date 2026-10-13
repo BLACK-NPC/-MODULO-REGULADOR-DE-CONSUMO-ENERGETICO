@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
-import { speak, stopSpeaking } from '@/lib/speech-synthesis'
+import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText } from '@/lib/speech-synthesis'
 import { detectWakeWord, fixEco, splitWake, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
@@ -61,6 +61,7 @@ export function useVoiceRecognition({
   const handsFreeRef = useRef(handsFree)
   const fromGestureRef = useRef(false)
   const pausedByUserRef = useRef(false)
+  const interrumpioVozRef = useRef(false)
   const beginRef = useRef<(fromGesture: boolean) => void>(() => {})
   handsFreeRef.current = handsFree
 
@@ -137,11 +138,13 @@ export function useVoiceRecognition({
 
   const tryStartListening = useCallback((delayMs = RESTART_DELAY_MS) => {
     const recognition = recognitionRef.current
-    if (!recognition || !sessionActiveRef.current || busyRef.current) return
+    if (!recognition || !sessionActiveRef.current) return
+    if (busyRef.current && !getSpeakingText()) return
 
     clearRestartTimer()
     restartTimerRef.current = setTimeout(() => {
-      if (!sessionActiveRef.current || busyRef.current) return
+      if (!sessionActiveRef.current) return
+      if (busyRef.current && !getSpeakingText()) return
 
       pendingTranscriptRef.current = ''
       try {
@@ -164,8 +167,10 @@ export function useVoiceRecognition({
   const processFinalTranscript = useCallback(
     async (finalText: string) => {
       let commandText = stripWakeWords(finalText) || finalText
+      const interrumpio = interrumpioVozRef.current
+      interrumpioVozRef.current = false
 
-      if (wakePhaseRef.current) {
+      if (wakePhaseRef.current && !interrumpio) {
         const heard = splitWake(finalText)
         if (!heard.woke) {
           busyRef.current = false
@@ -235,7 +240,9 @@ export function useVoiceRecognition({
 
       if (message && sessionActiveRef.current) {
         setStatus('speaking')
-        await speak(message, lang)
+        const habla = speak(message, lang)
+        tryStartListening(200)
+        await habla
       }
 
       if (
@@ -303,6 +310,18 @@ export function useVoiceRecognition({
       }
 
       const spoken = (allFinal || interim).trim()
+      if (spoken && esEcoDeLaVoz(spoken)) {
+        pendingTranscriptRef.current = ''
+        return
+      }
+      if (spoken && getSpeakingText()) {
+        interrumpioVozRef.current = true
+        abortCurrentCommand()
+        busyRef.current = false
+        setResponseText(null)
+        setStatus('listening')
+      }
+
       if (spoken) {
         scheduleInactivityTimeout()
       }
@@ -356,10 +375,28 @@ export function useVoiceRecognition({
     }
 
     recognition.onend = () => {
-      if (!sessionActiveRef.current || busyRef.current) return
+      if (!sessionActiveRef.current) return
 
       const text = pendingTranscriptRef.current.trim()
       pendingTranscriptRef.current = ''
+
+      if (text && esEcoDeLaVoz(text)) {
+        tryStartListening(200)
+        return
+      }
+
+      if (text && (getSpeakingText() || interrumpioVozRef.current)) {
+        interrumpioVozRef.current = true
+        abortCurrentCommand()
+        busyRef.current = false
+        void processFinalTranscript(text)
+        return
+      }
+
+      if (busyRef.current) {
+        if (getSpeakingText()) tryStartListening(200)
+        return
+      }
 
       if (text) {
         busyRef.current = true

@@ -114,8 +114,20 @@ function extractSensorName(text: string, prefixes: string[]): string | null {
   return null
 }
 
+let esperaResumen = false
+
+export function marcarOfertaResumen(activo: boolean) {
+  esperaResumen = activo
+}
+
 export function parseIntent(transcript: string): VoiceIntent {
   const t = normalize(transcript)
+
+  if (esperaResumen && /^(si|dale|claro|por favor|el resumen|resumen|resumen del dia|dame el resumen|si por favor)$/.test(t)) {
+    esperaResumen = false
+    return { type: 'EXT', cmd: { k: 'resumen_dia', day: { kind: 'day', idx: new Date().getDay() } }, raw: transcript }
+  }
+  if (esperaResumen) esperaResumen = false
 
   // Saludo
   if (/^(hola|hey|ok|oye|buenos dias|buenas tardes|buenas noches|buenas)$/.test(t)) {
@@ -131,8 +143,11 @@ export function parseIntent(transcript: string): VoiceIntent {
     return { type: 'HELP', raw: transcript }
   }
 
-  // Control de TTS
-  if (/(para|parar|detener|silencio|calla|callate)/.test(t) && /(voz|asistente|respuesta|audio)/.test(t)) {
+  // Control de TTS. "guarda silencio" corta lo que este diciendo.
+  if (
+    /^(guarda |guarde |haz |por favor )?(silencio|callate|calla|no hables|cierra la boca)( por favor)?$/.test(t) ||
+    (/\b(silencio|callate|calla|no hables)\b/.test(t) && /\b(guarda|guarde|quiero|haz|asistente|voz)\b/.test(t))
+  ) {
     return { type: 'TTS_STOP', raw: transcript }
   }
   if (/(mas rapido|habla rapido|acelera|speed up)/.test(t)) {

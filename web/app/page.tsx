@@ -10,7 +10,7 @@ import { AlertasVistas } from '@/components/dashboard/alertas-vistas'
 import { DatosExternosPage } from '@/components/dashboard/datos-externos-page'
 import { AirePage } from '@/components/dashboard/aire-page'
 import { VoiceFloatingAssistant, type DashboardPage } from '@/components/voice-floating-assistant'
-import type { VoiceIntent } from '@/components/voice-assistant'
+import { marcarOfertaResumen, type VoiceIntent } from '@/components/voice-assistant'
 import { useAVCData } from '@/hooks/use-avc-data'
 import {
   buildVoiceCommandFields,
@@ -29,12 +29,23 @@ import { continueLearn, ejecutarAprendida, ofrecerAprender, type AccionPantalla 
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
+const SALUDO = 'Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?'
+let saludoHecho = false
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [currentPage])
+  useEffect(() => {
+    if (saludoHecho) return
+    const id = window.setTimeout(() => {
+      saludoHecho = true
+      marcarOfertaResumen(true)
+      void speak(SALUDO)
+    }, 900)
+    return () => window.clearTimeout(id)
+  }, [])
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
 

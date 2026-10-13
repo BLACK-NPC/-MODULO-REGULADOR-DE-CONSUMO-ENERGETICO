@@ -1,4 +1,27 @@
+let textoEnCurso = ''
 let activeUtterance: SpeechSynthesisUtterance | null = null
+
+export function getSpeakingText() {
+  return textoEnCurso
+}
+
+function plano(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9ñ ]/g, ' ')
+}
+
+/** true si lo escuchado es el propio asistente, no una frase nueva del usuario. */
+export function esEcoDeLaVoz(heard: string) {
+  if (!textoEnCurso || !heard.trim()) return false
+  const dichas = plano(textoEnCurso).split(/\s+/).filter((palabra) => palabra.length > 2)
+  const oidas = plano(heard).split(/\s+/).filter((palabra) => palabra.length > 2)
+  if (oidas.length === 0) return true
+  const propias = new Set(dichas)
+  return oidas.every((palabra) => propias.has(palabra))
+}
 let isSpeaking = false
 let speechRate = 0.98
 const speechPitch = 1
@@ -94,6 +117,7 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
   if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve()
 
   const mio = ++turno
+  textoEnCurso = text
   window.speechSynthesis.cancel()
   const frases = frasesDe(text)
 
@@ -109,12 +133,15 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     return lanzar()
   }
 
-  return correr(0)
+  return correr(0).finally(() => {
+    if (mio === turno) textoEnCurso = ''
+  })
 }
 
 export function stopSpeaking(): void {
   if (typeof window === 'undefined') return
   turno += 1
+  textoEnCurso = ''
   isSpeaking = false
   activeUtterance = null
   window.speechSynthesis?.cancel()
