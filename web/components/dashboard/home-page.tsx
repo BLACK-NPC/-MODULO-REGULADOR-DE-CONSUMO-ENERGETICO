@@ -187,7 +187,7 @@ export function HomePage({
               </button>
             </div>
             <div className="flex flex-col gap-2 px-1">
-              <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <p className="flex items-center justify-start gap-2 text-xs text-muted-foreground">
                 <span>Temperatura objetivo:</span>
                 <span className="inline-flex items-center rounded-full bg-[#3ddc6a] px-3 py-1 text-sm font-bold text-[#06210f]">
                   {objetivo} °C
