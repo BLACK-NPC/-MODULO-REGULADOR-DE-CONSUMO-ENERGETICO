@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { parseIntent, type VoiceIntent } from '@/components/voice-assistant'
-import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText } from '@/lib/speech-synthesis'
+import { parseIntent, type VoiceIntent, marcarOfertaResumen } from '@/components/voice-assistant'
+import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText, getArrancoHabla } from '@/lib/speech-synthesis'
 import { detectWakeWord, fixEco, splitWake, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
@@ -15,7 +15,17 @@ export type VoiceRecognitionStatus =
   | 'error'
 
 /** Tiempo sin hablar antes de apagar la sesion. */
+function valeInterrumpir(heard: string) {
+  if (!getSpeakingText() || esEcoDeLaVoz(heard)) return false
+  const plano = heard.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  if (/^(si|no|silencio|callate|calla)$/.test(plano)) return true
+  const palabras = plano.split(/\s+/).filter((palabra) => palabra.length > 3)
+  return palabras.length >= 2
+}
+
 const INACTIVITY_TIMEOUT_MS = 15000
+const SALUDO = 'Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?'
+let saludoHecho = false
 /** Pausa tras terminar TTS antes de reabrir el microfono (Android/iOS). */
 const POST_TTS_DELAY_MS = 500
 /** Pausa antes de reiniciar recognition tras onend vacio. */
@@ -62,6 +72,7 @@ export function useVoiceRecognition({
   const fromGestureRef = useRef(false)
   const pausedByUserRef = useRef(false)
   const interrumpioVozRef = useRef(false)
+  const esperandoRespuestaSaludoRef = useRef(false)
   const beginRef = useRef<(fromGesture: boolean) => void>(() => {})
   handsFreeRef.current = handsFree
 
@@ -113,10 +124,27 @@ export function useVoiceRecognition({
 
   const scheduleInactivityTimeout = useCallback(() => {
     clearInactivityTimer()
-    if (!sessionActiveRef.current || wakePhaseRef.current) return
+    if (!sessionActiveRef.current) return
+    if (getSpeakingText()) return
+    if (wakePhaseRef.current && !esperandoRespuestaSaludoRef.current) return
 
     inactivityTimerRef.current = setTimeout(() => {
-      if (!sessionActiveRef.current || busyRef.current) return
+      if (!sessionActiveRef.current) return
+      if (getSpeakingText() || busyRef.current) {
+        scheduleInactivityTimeout()
+        return
+      }
+
+      if (esperandoRespuestaSaludoRef.current) {
+        esperandoRespuestaSaludoRef.current = false
+        marcarOfertaResumen(false)
+        wakePhaseRef.current = true
+        busyRef.current = false
+        setStatus('wake')
+        setTranscript('')
+        tryStartListening(200)
+        return
+      }
 
       sessionActiveRef.current = false
       busyRef.current = true
@@ -134,7 +162,7 @@ export function useVoiceRecognition({
         onSessionEndRef.current?.()
       })
     }, INACTIVITY_TIMEOUT_MS)
-  }, [clearInactivityTimer, lang])
+  }, [clearInactivityTimer, clearRestartTimer, lang])
 
   const tryStartListening = useCallback((delayMs = RESTART_DELAY_MS) => {
     const recognition = recognitionRef.current
@@ -191,6 +219,7 @@ export function useVoiceRecognition({
 
       const generation = commandGenerationRef.current + 1
       commandGenerationRef.current = generation
+      esperandoRespuestaSaludoRef.current = false
 
       const abortController = new AbortController()
       commandAbortRef.current = abortController
@@ -314,8 +343,9 @@ export function useVoiceRecognition({
         pendingTranscriptRef.current = ''
         return
       }
-      if (spoken && getSpeakingText()) {
+      if (spoken && valeInterrumpir(spoken)) {
         interrumpioVozRef.current = true
+        esperandoRespuestaSaludoRef.current = false
         abortCurrentCommand()
         busyRef.current = false
         setResponseText(null)
@@ -380,7 +410,7 @@ export function useVoiceRecognition({
       const text = pendingTranscriptRef.current.trim()
       pendingTranscriptRef.current = ''
 
-      if (text && esEcoDeLaVoz(text)) {
+      if (text && getSpeakingText() && !valeInterrumpir(text) && !interrumpioVozRef.current) {
         tryStartListening(200)
         return
       }
@@ -460,6 +490,13 @@ export function useVoiceRecognition({
     if (status === 'unsupported') return
 
     if (sessionActiveRef.current) {
+      if (wakePhaseRef.current) {
+        wakePhaseRef.current = false
+        pausedByUserRef.current = false
+        setStatus('listening')
+        scheduleInactivityTimeout()
+        return
+      }
       pausedByUserRef.current = true
       stopSession()
       return
@@ -491,6 +528,43 @@ export function useVoiceRecognition({
       window.removeEventListener('pageshow', tryArm)
     }
   }, [handsFree, beginSession])
+
+  useEffect(() => {
+    if (!handsFree || saludoHecho) return
+    const inicio = Date.now()
+    const intentar = window.setInterval(() => {
+      if (saludoHecho) {
+        window.clearInterval(intentar)
+        return
+      }
+      if (!recognitionRef.current && Date.now() - inicio < 8000) return
+      if (document.readyState !== 'complete' && Date.now() - inicio < 8000) return
+      window.clearInterval(intentar)
+      saludoHecho = true
+      beginSession(false)
+      wakePhaseRef.current = false
+      esperandoRespuestaSaludoRef.current = true
+      marcarOfertaResumen(true)
+      void speak(SALUDO).finally(() => {
+        if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
+        scheduleInactivityTimeout()
+      })
+      window.setTimeout(() => {
+        if (getArrancoHabla() || getSpeakingText()) return
+        const alTocar = () => {
+          window.removeEventListener('pointerdown', alTocar)
+          esperandoRespuestaSaludoRef.current = true
+          marcarOfertaResumen(true)
+          void speak(SALUDO).finally(() => {
+            if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
+            scheduleInactivityTimeout()
+          })
+        }
+        window.addEventListener('pointerdown', alTocar, { once: true })
+      }, 1600)
+    }, 300)
+    return () => window.clearInterval(intentar)
+  }, [handsFree, beginSession, scheduleInactivityTimeout])
 
   const stopListening = useCallback(() => {
     stopSession()

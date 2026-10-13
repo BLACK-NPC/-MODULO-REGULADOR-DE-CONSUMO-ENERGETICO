@@ -1,4 +1,9 @@
+let arrancoHabla = false
 let textoEnCurso = ''
+
+export function getArrancoHabla() {
+  return arrancoHabla
+}
 let activeUtterance: SpeechSynthesisUtterance | null = null
 
 export function getSpeakingText() {
@@ -96,11 +101,15 @@ function decir(text: string, lang: string): Promise<void> {
       resolve()
     }
 
-    utterance.onstart = () => { isSpeaking = true }
+    utterance.onstart = () => {
+      isSpeaking = true
+      arrancoHabla = true
+    }
     utterance.onend = finish
     utterance.onerror = finish
 
     activeUtterance = utterance
+    window.speechSynthesis.resume()
     window.speechSynthesis.speak(utterance)
   })
 }
@@ -113,12 +122,25 @@ function frasesDe(text: string) {
   return partes.length > 0 ? partes : [text]
 }
 
+function vocesListas() {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve()
+  if (window.speechSynthesis.getVoices().length > 0) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const seguir = () => {
+      window.speechSynthesis.onvoiceschanged = preloadVoices
+      resolve()
+    }
+    window.speechSynthesis.onvoiceschanged = seguir
+    window.setTimeout(seguir, 700)
+  })
+}
+
 export function speak(text: string, lang = 'es-CO'): Promise<void> {
   if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve()
 
   const mio = ++turno
+  arrancoHabla = false
   textoEnCurso = text
-  window.speechSynthesis.cancel()
   const frases = frasesDe(text)
 
   const correr = (indice: number): Promise<void> => {
@@ -133,7 +155,18 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     return lanzar()
   }
 
-  return correr(0).finally(() => {
+  const pulso = window.setInterval(() => {
+    if (mio === turno && window.speechSynthesis.speaking) window.speechSynthesis.resume()
+  }, 4000)
+
+  return vocesListas().then(() => new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 80)
+  })).then(() => {
+    if (mio !== turno) return
+    window.speechSynthesis.resume()
+    return correr(0)
+  }).finally(() => {
+    window.clearInterval(pulso)
     if (mio === turno) textoEnCurso = ''
   })
 }
