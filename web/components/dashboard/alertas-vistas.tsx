@@ -45,6 +45,19 @@ const LUZ: Record<Nivel, { linea: string; texto: string }> = {
   sin_dato: { linea: 'rgba(125,220,31,.35)', texto: '#9aa39d' },
 }
 
+function nivelConteo(cantidad: number): Nivel {
+  if (cantidad <= 0) return 'ok'
+  if (cantidad <= 2) return 'aviso'
+  return 'peligro'
+}
+
+function nivelTiempo(segundos: number | null): Nivel {
+  if (segundos === null) return 'sin_dato'
+  if (segundos < 15 * 60) return 'ok'
+  if (segundos < 2 * 3600) return 'aviso'
+  return 'peligro'
+}
+
 function tinta(hex: string, alpha: number) {
   const n = Number.parseInt(hex.slice(1), 16)
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`
@@ -350,9 +363,13 @@ export function AlertasVistas({
           <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
             <h3 className="font-semibold text-foreground">Historial de fallas</h3>
             <div className="grid grid-cols-3 gap-2">
-              <Kpi label="Fallas" value={String(records.length)} />
-              <Kpi label="Tiempo fuera" value={journal ? formatSeconds(totalSec) : '--'} />
-              <Kpi label="Recuperacion" value={done.length === 0 ? '--' : formatSeconds(Math.round(doneSec / done.length))} />
+              <Kpi label="Fallas" value={String(records.length)} nivel={nivelConteo(records.length)} />
+              <Kpi label="Tiempo fuera" value={journal ? formatSeconds(totalSec) : '--'} nivel={journal ? nivelTiempo(totalSec) : 'sin_dato'} />
+              <Kpi
+                label="Recuperacion"
+                value={done.length === 0 ? '--' : formatSeconds(Math.round(doneSec / done.length))}
+                nivel={done.length === 0 ? (open.length > 0 ? 'peligro' : 'sin_dato') : nivelTiempo(Math.round(doneSec / done.length))}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               {([['Todas', records.length], ['En curso', open.length], ['Resueltas', done.length]] as const).map(([label, count], index) => (
@@ -421,11 +438,13 @@ export function AlertasVistas({
   )
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({ label, value, nivel }: { label: string; value: string; nivel: Nivel }) {
+  const luz = LUZ[nivel]
   return (
-    <div className="rounded-xl bg-secondary/50 p-3">
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-card p-3">
+      <Franja color={luz.linea} />
       <small className="block text-[11px] text-muted-foreground">{label}</small>
-      <b className="text-lg font-semibold text-foreground">{value}</b>
+      <b className="text-lg font-semibold" style={{ color: luz.texto }}>{value}</b>
     </div>
   )
 }
