@@ -276,8 +276,17 @@ function formatoTiempo(segundos: number, total: number) {
 }
 
 function ticksTiempo(duracion: number) {
-  if (duracion <= 0) return [0]
-  return [...new Set(Array.from({ length: 6 }, (_, index) => Math.round((duracion * index) / 5)))]
+  if (!Number.isFinite(duracion) || duracion <= 0) return [0, 1]
+  const ticks = [...new Set(Array.from({ length: 6 }, (_, index) => Math.round((duracion * index) / 5)))]
+  return ticks.length > 1 ? ticks : [0, 1]
+}
+
+function dominioX(datos: PuntoGrafica[]): [number, number] {
+  const xs = datos.map((punto) => punto.x).filter((valor) => Number.isFinite(valor))
+  if (xs.length === 0) return [0, 1]
+  const min = Math.min(...xs)
+  const max = Math.max(...xs)
+  return max > min ? [min, max] : [min, min + 1]
 }
 
 function dominioFino(valores: Array<number | null>, fijo: [number, number], fino: boolean): [number, number] {
@@ -286,6 +295,7 @@ function dominioFino(valores: Array<number | null>, fijo: [number, number], fino
   if (numeros.length === 0) return fijo
   let min = Math.min(...numeros)
   let max = Math.max(...numeros)
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return fijo
   if (max - min < 0.4) {
     const medio = (max + min) / 2
     min = medio - 0.2
@@ -295,7 +305,9 @@ function dominioFino(valores: Array<number | null>, fijo: [number, number], fino
     min -= margen
     max += margen
   }
-  return [Math.floor(min * 10) / 10, Math.ceil(max * 10) / 10]
+  const bajo = Math.floor(min * 10) / 10
+  const alto = Math.ceil(max * 10) / 10
+  return alto > bajo ? [bajo, alto] : [bajo, bajo + 1]
 }
 
 function muestrasEn(vivo: Vivo, desde: number, hasta: number) {
@@ -683,7 +695,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
               </p>
             </div>
           ) : (
-            <div className="h-[280px]">
+              <div>
               <div className="flex items-center justify-between px-8 text-[11px] font-semibold leading-none">
                 <span style={{ color: COLORES.temperatura }}>{enCombinada.includes('temperatura') ? '°C' : ''}</span>
                 <span>
@@ -692,13 +704,13 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                   {enCombinada.includes('potencia') ? <span style={{ color: COLORES.potencia }}>W</span> : null}
                 </span>
               </div>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={252}>
                 <LineChart data={grafica.datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="#333" vertical={false} />
                   <XAxis
                     type="number"
                     dataKey="x"
-                    domain={['dataMin', 'dataMax']}
+                    domain={dominioX(grafica.datos)}
                     stroke="#666"
                     ticks={grafica.ticks}
                     tickFormatter={grafica.formato}
@@ -927,11 +939,11 @@ function PanelSeparado({
             </button>
           ))}
         </div> : null}
-        <div className="h-[140px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div>
+          <ResponsiveContainer width="100%" height={140}>
             <LineChart data={serie} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#333" vertical={false} />
-              <XAxis type="number" dataKey="x" domain={['dataMin', 'dataMax']} stroke="#666" ticks={porHoras ? undefined : ticks} tickFormatter={formato} padding={{ left: 0, right: 0 }} />
+              <XAxis type="number" dataKey="x" domain={dominioX(serie)} stroke="#666" ticks={porHoras ? undefined : ticks} tickFormatter={formato} padding={{ left: 0, right: 0 }} />
               <YAxis stroke={COLORES[metrica]} width={40} domain={dominio} unit={unidad} />
               <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} labelFormatter={(valor) => formato(Number(valor))} />
               {horaMarcada !== null && porHoras ? <ReferenceLine x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
