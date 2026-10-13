@@ -229,8 +229,14 @@ export function AlertasVistas({
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Alertas</h1>
       )}
 
-      <div role="status" className="relative flex items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-card p-5">
-        <Franja color={hero.tone === 'off' ? 'rgba(240,180,41,.55)' : heroLuz} />
+      <div
+        role="status"
+        className="relative flex items-center gap-4 overflow-hidden rounded-2xl border p-5"
+        style={{
+          borderColor: tinta(heroLuz, 0.28),
+          background: `radial-gradient(520px 220px at 0% 0%, ${tinta(heroLuz, 0.13)}, transparent 70%), #0d100e`,
+        }}
+      >
         <span
           className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
           style={{
