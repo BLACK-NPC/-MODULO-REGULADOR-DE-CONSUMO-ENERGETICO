@@ -46,21 +46,26 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   preloadVoices()
 }
 
-const MALE_NAME = /\b(pablo|alvaro|raul|jorge|diego|enrique|carlos|andres|juan|miguel|antonio|gonzalo|male|hombre)\b/i
-const FEMALE_NAME = /\b(helena|sabina|laura|elvira|monica|paulina|sofia|lucia|maria|elena|female|mujer)\b/i
-const NATURAL = /natural|neural|premium|enhanced|google|online/i
+const MALE_NAME = /\b(jorge|alvaro|andres|pablo|raul|diego|enrique|carlos|gonzalo|male|hombre)\b/i
+const FEMALE_NAME = /\b(helena|sabina|laura|elvira|monica|paulina|sofia|lucia|maria|elena|dalia|female|mujer)\b/i
+const NATURAL = /natural|neural|wavenet|premium/i
 
 function pickSpanishVoice(): SpeechSynthesisVoice | undefined {
   if (typeof window === 'undefined' || !window.speechSynthesis) return undefined
-  const voices = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('es'))
+  const voices = window.speechSynthesis.getVoices().filter((voz) => voz.lang.toLowerCase().startsWith('es'))
   const puntaje = (voz: SpeechSynthesisVoice) => {
     const nombre = voz.name
     let puntos = 0
-    if (MALE_NAME.test(nombre) && !FEMALE_NAME.test(nombre)) puntos += 8
-    if (NATURAL.test(nombre)) puntos += 10
-    if (voz.lang.toLowerCase().startsWith('es-co')) puntos += 3
-    else if (/^es-(mx|es)/i.test(voz.lang)) puntos += 1
-    if (voz.localService && !NATURAL.test(nombre)) puntos -= 3
+    const natural = NATURAL.test(nombre)
+    const hombre = MALE_NAME.test(nombre) && !FEMALE_NAME.test(nombre)
+    if (natural && hombre) puntos += 40
+    else if (natural) puntos += 24
+    else if (hombre) puntos += 8
+    if (/\bjorge\b/i.test(nombre)) puntos += 6
+    if (/google/i.test(nombre) && natural) puntos += 4
+    if (voz.lang.toLowerCase().startsWith('es-mx') || voz.lang.toLowerCase().startsWith('es-419')) puntos += 3
+    else if (voz.lang.toLowerCase().startsWith('es-co')) puntos += 2
+    if (voz.localService && !natural) puntos -= 8
     return puntos
   }
   return [...voices].sort((a, b) => puntaje(b) - puntaje(a))[0]
@@ -93,7 +98,13 @@ function decir(text: string, lang: string): Promise<void> {
     utterance.pitch = speechPitch
 
     const voice = pickSpanishVoice()
-    if (voice) utterance.voice = voice
+    const natural = voice ? /natural|neural|wavenet/i.test(voice.name) : false
+    if (voice) {
+      utterance.voice = voice
+      utterance.lang = voice.lang
+    }
+    utterance.rate = natural ? Math.min(speechRate, 0.94) : speechRate
+    utterance.pitch = natural ? 1 : speechPitch
 
     const finish = () => {
       isSpeaking = false
@@ -148,7 +159,7 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     const lanzar = () => decir(frases[indice], lang).then(() => {
       if (mio !== turno || indice >= frases.length - 1) return
       return new Promise<void>((resolve) => {
-        setTimeout(() => resolve(), 160)
+        setTimeout(() => resolve(), 280)
       }).then(() => correr(indice + 1))
     })
     if (isIOS && indice === 0) return new Promise((resolve) => setTimeout(resolve, 120)).then(lanzar)
