@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     headers: {
       'Ocp-Apim-Subscription-Key': clave,
       'Content-Type': 'application/ssml+xml',
-      'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
+      'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
       'User-Agent': 'EcoPulse',
     },
     body: ssml,

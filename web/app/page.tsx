@@ -211,31 +211,48 @@ export default function Dashboard() {
     window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-monitoreo', { detail: accion })), 350)
   }
 
+  const asistente = (
+    <VoiceFloatingAssistant
+      currentPage={currentPage}
+      voiceSectionVisible={false}
+      commandsMenuOpen={commandsMenuOpen}
+      onCommandsMenuOpenChange={setCommandsMenuOpen}
+      onCommand={handleVoiceCommand}
+      lang="es-CO"
+    />
+  )
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">Conectando con Firebase...</p>
+      <>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-primary animate-spin" />
+            <p className="text-muted-foreground">Conectando con Firebase...</p>
+          </div>
         </div>
-      </div>
+        {asistente}
+      </>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
-            <span className="text-3xl text-red-400">!</span>
+      <>
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <div className="max-w-md text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
+              <span className="text-3xl text-red-400">!</span>
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Error de Conexion</h2>
+            <p className="text-muted-foreground">{error}</p>
+            <p className="text-sm text-muted-foreground">
+              Verifica que las variables de entorno de Firebase esten correctamente configuradas.
+            </p>
           </div>
-          <h2 className="text-xl font-bold text-foreground">Error de Conexion</h2>
-          <p className="text-muted-foreground">{error}</p>
-          <p className="text-sm text-muted-foreground">
-            Verifica que las variables de entorno de Firebase esten correctamente configuradas.
-          </p>
         </div>
-      </div>
+        {asistente}
+      </>
     )
   }
 
@@ -333,14 +350,7 @@ export default function Dashboard() {
         </footer>
       </div>
 
-      <VoiceFloatingAssistant
-        currentPage={currentPage}
-        voiceSectionVisible={false}
-        commandsMenuOpen={commandsMenuOpen}
-        onCommandsMenuOpenChange={setCommandsMenuOpen}
-        onCommand={handleVoiceCommand}
-        lang="es-CO"
-      />
+      {asistente}
     </>
   )
 }

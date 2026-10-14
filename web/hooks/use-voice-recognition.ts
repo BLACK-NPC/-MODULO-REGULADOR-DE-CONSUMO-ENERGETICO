@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent, marcarOfertaResumen } from '@/components/voice-assistant'
-import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText, getArrancoHabla } from '@/lib/speech-synthesis'
+import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText, getArrancoHabla, prepararVoz } from '@/lib/speech-synthesis'
 import { detectWakeWord, fixEco, splitWake, stripWakeWords } from '@/lib/wake-word'
 
 export type VoiceRecognitionStatus =
@@ -26,6 +26,7 @@ function valeInterrumpir(heard: string) {
 const INACTIVITY_TIMEOUT_MS = 15000
 const SALUDO = 'Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?'
 let saludoHecho = false
+if (typeof window !== 'undefined') prepararVoz(SALUDO)
 /** Pausa tras terminar TTS antes de reabrir el microfono (Android/iOS). */
 const POST_TTS_DELAY_MS = 500
 /** Pausa antes de reiniciar recognition tras onend vacio. */
@@ -553,7 +554,7 @@ export function useVoiceRecognition({
 
     saludar()
     return () => {
-      if (!getArrancoHabla()) saludoHecho = false
+      if (!getArrancoHabla() && !getSpeakingText()) saludoHecho = false
     }
   }, [handsFree, beginSession, scheduleInactivityTimeout])
 

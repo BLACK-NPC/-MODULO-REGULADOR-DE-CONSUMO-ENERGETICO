@@ -52,19 +52,85 @@ function pararReproductor() {
   }
 }
 
-function decirJorge(text: string, mio: number): Promise<'ok' | 'no' | 'bloqueado'> {
-  if (typeof window === 'undefined' || !text.trim()) return Promise.resolve('no')
-  const ctrl = new AbortController()
-  corteVoz = ctrl
-  return fetch('/api/voz', {
+const memoriaAudio = new Map<string, Blob>()
+const viajesAudio = new Map<string, Promise<Blob | null>>()
+
+function huella(texto: string) {
+  let hash = 0
+  for (let i = 0; i < texto.length; i += 1) hash = (Math.imul(hash, 31) + texto.charCodeAt(i)) | 0
+  return String(hash)
+}
+
+function leerGuardado(texto: string): Blob | null {
+  const listo = memoriaAudio.get(texto)
+  if (listo) return listo
+  if (typeof window === 'undefined') return null
+  try {
+    const crudo = window.localStorage.getItem(`ecopulse-jorge-${huella(texto)}`)
+    if (!crudo) return null
+    const bin = atob(crudo)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'audio/mpeg' })
+    memoriaAudio.set(texto, blob)
+    return blob
+  } catch {
+    return null
+  }
+}
+
+function guardarAudio(texto: string, blob: Blob) {
+  memoriaAudio.set(texto, blob)
+  if (blob.size > 180_000 || typeof window === 'undefined') return
+  void blob.arrayBuffer().then((buffer) => {
+    const bytes = new Uint8Array(buffer)
+    let bin = ''
+    for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i])
+    try {
+      window.localStorage.setItem(`ecopulse-jorge-${huella(texto)}`, btoa(bin))
+    } catch {
+      /* el navegador puede negar espacio */
+    }
+  }).catch(() => undefined)
+}
+
+function pedirAudio(texto: string): Promise<Blob | null> {
+  const clave = texto.slice(0, 600)
+  const guardado = leerGuardado(clave)
+  if (guardado) return Promise.resolve(guardado)
+  const viaje = viajesAudio.get(clave)
+  if (viaje) return viaje
+  const trabajo = fetch('/api/voz', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texto: text.slice(0, 600) }),
-    signal: ctrl.signal,
+    body: JSON.stringify({ texto: clave }),
   }).then(async (res) => {
-    if (!res.ok || mio !== turno) return 'no'
+    if (!res.ok) return null
     const blob = await res.blob()
-    if (mio !== turno || blob.size === 0) return 'no'
+    if (!blob.size) return null
+    guardarAudio(clave, blob)
+    return blob
+  }).catch(() => null).finally(() => {
+    if (viajesAudio.get(clave) === trabajo) viajesAudio.delete(clave)
+  })
+  viajesAudio.set(clave, trabajo)
+  return trabajo
+}
+
+export function prepararVoz(texto: string) {
+  const partes = texto.split(/(?<=[.!?;])\s+/).map((parte) => parte.trim()).filter(Boolean)
+  if (partes.length > 1) {
+    void pedirAudio(partes[0])
+    void pedirAudio(partes.slice(1).join(' '))
+    return
+  }
+  void pedirAudio(texto)
+}
+
+function decirJorge(text: string, mio: number): Promise<'ok' | 'no' | 'bloqueado'> {
+  if (typeof window === 'undefined' || !text.trim()) return Promise.resolve('no')
+  return pedirAudio(text).then((blob) => {
+    if (!blob || mio !== turno) return 'no'
     const url = URL.createObjectURL(blob)
     urlActual = url
     const audio = new Audio(url)
@@ -226,6 +292,12 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
   textoEnCurso = text
   pararReproductor()
   const frases = frasesDe(text)
+  const primera = frases.length > 1 && !leerGuardado(text) ? frases[0] : ''
+  const resto = primera ? frases.slice(1).join(' ') : ''
+  if (primera) {
+    void pedirAudio(primera)
+    void pedirAudio(resto)
+  }
 
   const correr = (indice: number): Promise<void> => {
     if (mio !== turno || indice >= frases.length) return Promise.resolve()
@@ -243,7 +315,14 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
     if (mio === turno && window.speechSynthesis?.speaking) window.speechSynthesis.resume()
   }, 4000)
 
-  return decirJorge(text, mio).then((resultado) => {
+  const jorge = primera
+    ? decirJorge(primera, mio).then((resultado) => {
+      if (resultado !== 'ok' || mio !== turno) return resultado
+      return decirJorge(resto, mio)
+    })
+    : decirJorge(text, mio)
+
+  return jorge.then((resultado) => {
     if (mio !== turno || resultado === 'ok' || resultado === 'bloqueado' || !window.speechSynthesis) return
     return vocesListas().then(() => new Promise<void>((resolve) => {
       window.setTimeout(resolve, 80)
