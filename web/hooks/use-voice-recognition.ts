@@ -446,7 +446,6 @@ export function useVoiceRecognition({
       sessionActiveRef.current = false
       clearInactivityTimer()
       clearRestartTimer()
-      abortCurrentCommand()
       recognition.abort()
       recognitionRef.current = null
     }
@@ -531,39 +530,31 @@ export function useVoiceRecognition({
 
   useEffect(() => {
     if (!handsFree || saludoHecho) return
-    const inicio = Date.now()
-    const intentar = window.setInterval(() => {
-      if (saludoHecho) {
-        window.clearInterval(intentar)
-        return
-      }
-      if (!recognitionRef.current && Date.now() - inicio < 8000) return
-      if (document.readyState !== 'complete' && Date.now() - inicio < 8000) return
-      window.clearInterval(intentar)
-      saludoHecho = true
+    saludoHecho = true
+
+    const saludar = () => {
       beginSession(false)
       wakePhaseRef.current = false
       esperandoRespuestaSaludoRef.current = true
       marcarOfertaResumen(true)
       void speak(SALUDO).finally(() => {
+        if (!getArrancoHabla()) {
+          const alTocar = () => {
+            window.removeEventListener('pointerdown', alTocar)
+            saludar()
+          }
+          window.addEventListener('pointerdown', alTocar, { once: true })
+          return
+        }
         if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
         scheduleInactivityTimeout()
       })
-      window.setTimeout(() => {
-        if (getArrancoHabla() || getSpeakingText()) return
-        const alTocar = () => {
-          window.removeEventListener('pointerdown', alTocar)
-          esperandoRespuestaSaludoRef.current = true
-          marcarOfertaResumen(true)
-          void speak(SALUDO).finally(() => {
-            if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
-            scheduleInactivityTimeout()
-          })
-        }
-        window.addEventListener('pointerdown', alTocar, { once: true })
-      }, 1600)
-    }, 300)
-    return () => window.clearInterval(intentar)
+    }
+
+    saludar()
+    return () => {
+      if (!getArrancoHabla()) saludoHecho = false
+    }
   }, [handsFree, beginSession, scheduleInactivityTimeout])
 
   const stopListening = useCallback(() => {

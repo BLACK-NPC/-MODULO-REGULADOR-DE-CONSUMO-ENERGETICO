@@ -52,7 +52,7 @@ function pararReproductor() {
   }
 }
 
-function decirJorge(text: string, mio: number): Promise<'ok' | 'no'> {
+function decirJorge(text: string, mio: number): Promise<'ok' | 'no' | 'bloqueado'> {
   if (typeof window === 'undefined' || !text.trim()) return Promise.resolve('no')
   const ctrl = new AbortController()
   corteVoz = ctrl
@@ -70,8 +70,8 @@ function decirJorge(text: string, mio: number): Promise<'ok' | 'no'> {
     const audio = new Audio(url)
     audioActual = audio
     audio.playbackRate = Math.min(1.15, Math.max(0.85, speechRate))
-    return new Promise<'ok' | 'no'>((resolve) => {
-      const cerrar = (bien: 'ok' | 'no') => {
+    return new Promise<'ok' | 'no' | 'bloqueado'>((resolve) => {
+      const cerrar = (bien: 'ok' | 'no' | 'bloqueado') => {
         isSpeaking = false
         if (audioActual === audio) audioActual = null
         if (urlActual === url) {
@@ -96,7 +96,10 @@ function decirJorge(text: string, mio: number): Promise<'ok' | 'no'> {
           audio.pause()
           cerrar('no')
         }
-      }).catch(() => cerrar('no'))
+      }).catch((error: unknown) => {
+        const bloqueado = error instanceof DOMException && error.name === 'NotAllowedError'
+        cerrar(bloqueado ? 'bloqueado' : 'no')
+      })
     })
   }).catch(() => 'no')
 }
@@ -241,7 +244,7 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
   }, 4000)
 
   return decirJorge(text, mio).then((resultado) => {
-    if (mio !== turno || resultado === 'ok' || !window.speechSynthesis) return
+    if (mio !== turno || resultado === 'ok' || resultado === 'bloqueado' || !window.speechSynthesis) return
     return vocesListas().then(() => new Promise<void>((resolve) => {
       window.setTimeout(resolve, 80)
     })).then(() => {
