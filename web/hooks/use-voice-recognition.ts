@@ -547,26 +547,25 @@ export function useVoiceRecognition({
     esperandoRespuestaSaludoRef.current = true
     marcarOfertaResumen(true)
 
-    const saludar = () => {
-      esperandoRespuestaSaludoRef.current = true
-      marcarOfertaResumen(true)
-      void speak(SALUDO).finally(() => {
+    void saludoPromesa?.finally(() => {
+      if (getArrancoHabla()) {
         if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
         scheduleInactivityTimeout()
-      })
-    }
-
-    void saludoPromesa?.finally(() => {
-      if (!getArrancoHabla()) {
-        const alTocar = () => {
-          window.removeEventListener('pointerdown', alTocar)
-          saludar()
-        }
-        window.addEventListener('pointerdown', alTocar, { once: true })
         return
       }
-      if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
-      scheduleInactivityTimeout()
+      const alTocar = () => {
+        window.removeEventListener('pointerdown', alTocar)
+        const marca = window as Window & { __saludoNav?: number; __saludoFin?: number }
+        marca.__saludoNav = 0
+        marca.__saludoFin = 0
+        esperandoRespuestaSaludoRef.current = true
+        marcarOfertaResumen(true)
+        void speak(SALUDO).finally(() => {
+          if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
+          scheduleInactivityTimeout()
+        })
+      }
+      window.addEventListener('pointerdown', alTocar, { once: true })
     })
   }, [handsFree, beginSession, scheduleInactivityTimeout])
 

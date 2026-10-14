@@ -2,7 +2,10 @@ let arrancoHabla = false
 let textoEnCurso = ''
 
 export function getArrancoHabla() {
-  return arrancoHabla
+  if (arrancoHabla) return true
+  if (typeof window === 'undefined') return false
+  const marca = window as Window & { __jorgeSono?: number }
+  return marca.__jorgeSono === 1 || !!window.speechSynthesis?.speaking
 }
 let activeUtterance: SpeechSynthesisUtterance | null = null
 
@@ -134,7 +137,44 @@ export function prepararVoz(texto: string) {
 
 function decirJorge(text: string, mio: number): Promise<'ok' | 'no' | 'bloqueado'> {
   if (typeof window === 'undefined' || !text.trim()) return Promise.resolve('no')
+  const marca = window as Window & { __jorgeAudio?: HTMLAudioElement; __jorgeSono?: number; __saludoNav?: number }
+  if (text.startsWith('Hola señor') && marca.__saludoNav === 1) return Promise.resolve('ok')
+  if (text.startsWith('Hola señor') && marca.__jorgeAudio && marca.__jorgeSono === 1) {
+    const audio = marca.__jorgeAudio
+    audioActual = audio
+    isSpeaking = !audio.ended
+    arrancoHabla = true
+    if (audio.ended) {
+      isSpeaking = false
+      return Promise.resolve('ok')
+    }
+    return new Promise((resolve) => {
+      audio.onended = () => {
+        isSpeaking = false
+        if (audioActual === audio) audioActual = null
+        resolve('ok')
+      }
+    })
+  }
   return pedirAudio(text).then((blob) => {
+    if (text.startsWith('Hola señor') && marca.__saludoNav === 1) return 'ok'
+    if (text.startsWith('Hola señor') && marca.__jorgeAudio && marca.__jorgeSono === 1) {
+      const audio = marca.__jorgeAudio
+      audioActual = audio
+      isSpeaking = !audio.ended
+      arrancoHabla = true
+      if (audio.ended) {
+        isSpeaking = false
+        return 'ok'
+      }
+      return new Promise<'ok'>((resolve) => {
+        audio.onended = () => {
+          isSpeaking = false
+          if (audioActual === audio) audioActual = null
+          resolve('ok')
+        }
+      })
+    }
     if (!blob || mio !== turno) return 'no'
     const url = URL.createObjectURL(blob)
     urlActual = url
@@ -295,6 +335,19 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
   const mio = ++turno
   arrancoHabla = false
   textoEnCurso = text
+  const marca = window as Window & { __saludoNav?: number; __saludoFin?: number }
+  if (marca.__saludoNav === 1) {
+    arrancoHabla = true
+    return new Promise<void>((resolve) => {
+      const ver = () => {
+        if (marca.__saludoFin === 1 || mio !== turno) resolve()
+        else window.setTimeout(ver, 200)
+      }
+      ver()
+    }).finally(() => {
+      if (mio === turno) textoEnCurso = ''
+    })
+  }
   pararReproductor()
   const frases = frasesDe(text)
   const primera = frases.length > 1 && !leerGuardado(text) ? frases[0] : ''
@@ -322,13 +375,15 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
 
   const jorge = primera
     ? decirJorge(primera, mio).then((resultado) => {
+      const voz = window as Window & { __saludoNav?: number }
+      if (voz.__saludoNav === 1) return 'ok' as const
       if (resultado !== 'ok' || mio !== turno) return resultado
       return decirJorge(resto, mio)
     })
     : decirJorge(text, mio)
 
   return jorge.then((resultado) => {
-    if (mio !== turno || resultado === 'ok' || resultado === 'bloqueado' || !window.speechSynthesis) return
+    if (mio !== turno || resultado === 'ok' || !window.speechSynthesis) return
     return vocesListas().then(() => new Promise<void>((resolve) => {
       window.setTimeout(resolve, 80)
     })).then(() => {

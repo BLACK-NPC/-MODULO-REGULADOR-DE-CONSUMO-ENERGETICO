@@ -57,7 +57,26 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <script
           dangerouslySetInnerHTML={{
-            __html: 'window.__jorgeListo=fetch("/api/voz",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:"Hola señor."})}).then(function(r){return r.ok?r.blob():null}).catch(function(){return null})',
+            __html: `(function(){
+              function hablarNav(){
+                if(window.__saludoNav||!window.speechSynthesis)return;
+                window.__saludoNav=1;
+                var u=new SpeechSynthesisUtterance("Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?");
+                u.lang="es-MX";
+                u.onstart=function(){window.__saludoNav=1};
+                u.onend=function(){window.__saludoFin=1};
+                u.onerror=function(){window.__saludoFin=1};
+                window.speechSynthesis.resume();
+                window.speechSynthesis.speak(u);
+              }
+              window.__jorgeListo=fetch("/api/voz",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:"Hola señor."})}).then(function(r){return r.ok?r.blob():null}).then(function(blob){
+                if(!blob){hablarNav();return null}
+                var a=new Audio(URL.createObjectURL(blob));
+                a.setAttribute("playsinline","");
+                window.__jorgeAudio=a;
+                return a.play().then(function(){window.__jorgeSono=1;return blob}).catch(function(){window.__jorgeSono=0;hablarNav();return blob});
+              }).catch(function(){hablarNav();return null});
+            })();`,
           }}
         />
         <PwaRegister />
