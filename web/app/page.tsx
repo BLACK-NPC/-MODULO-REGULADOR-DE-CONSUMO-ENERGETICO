@@ -23,6 +23,7 @@ import {
 import { type HmiCommandResult } from '@/lib/hmi-command'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
+import { anticiparSaludo } from '@/hooks/use-voice-recognition'
 import { stopSpeaking, getSpeechRate, setSpeechRate, speak } from '@/lib/speech-synthesis'
 import { continueDialog, runExt, type ExtCtx } from '@/lib/voice-ext-run'
 import { continueLearn, ejecutarAprendida, ofrecerAprender, type AccionPantalla } from '@/lib/voice-learn'
@@ -35,6 +36,9 @@ export default function Dashboard() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [currentPage])
+  useEffect(() => {
+    anticiparSaludo()
+  }, [])
   const [commandsMenuOpen, setCommandsMenuOpen] = useState(false)
   const { data, loading, error, commandUpdate, sendHmiCommand, isDemo, lastHeartbeatAt } = useAVCData()
 
@@ -211,48 +215,31 @@ export default function Dashboard() {
     window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-monitoreo', { detail: accion })), 350)
   }
 
-  const asistente = (
-    <VoiceFloatingAssistant
-      currentPage={currentPage}
-      voiceSectionVisible={false}
-      commandsMenuOpen={commandsMenuOpen}
-      onCommandsMenuOpenChange={setCommandsMenuOpen}
-      onCommand={handleVoiceCommand}
-      lang="es-CO"
-    />
-  )
-
   if (loading) {
     return (
-      <>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <p className="text-muted-foreground">Conectando con Firebase...</p>
-          </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 text-primary animate-spin" />
+          <p className="text-muted-foreground">Conectando con Firebase...</p>
         </div>
-        {asistente}
-      </>
+      </div>
     )
   }
 
   if (error) {
     return (
-      <>
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-          <div className="max-w-md text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
-              <span className="text-3xl text-red-400">!</span>
-            </div>
-            <h2 className="text-xl font-bold text-foreground">Error de Conexion</h2>
-            <p className="text-muted-foreground">{error}</p>
-            <p className="text-sm text-muted-foreground">
-              Verifica que las variables de entorno de Firebase esten correctamente configuradas.
-            </p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
+            <span className="text-3xl text-red-400">!</span>
           </div>
+          <h2 className="text-xl font-bold text-foreground">Error de Conexion</h2>
+          <p className="text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">
+            Verifica que las variables de entorno de Firebase esten correctamente configuradas.
+          </p>
         </div>
-        {asistente}
-      </>
+      </div>
     )
   }
 
@@ -350,7 +337,14 @@ export default function Dashboard() {
         </footer>
       </div>
 
-      {asistente}
+      <VoiceFloatingAssistant
+        currentPage={currentPage}
+        voiceSectionVisible={false}
+        commandsMenuOpen={commandsMenuOpen}
+        onCommandsMenuOpenChange={setCommandsMenuOpen}
+        onCommand={handleVoiceCommand}
+        lang="es-CO"
+      />
     </>
   )
 }

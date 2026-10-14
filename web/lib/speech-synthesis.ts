@@ -100,14 +100,19 @@ function pedirAudio(texto: string): Promise<Blob | null> {
   if (guardado) return Promise.resolve(guardado)
   const viaje = viajesAudio.get(clave)
   if (viaje) return viaje
-  const trabajo = fetch('/api/voz', {
+  const previo = clave === 'Hola señor.' && typeof window !== 'undefined'
+    ? (window as Window & { __jorgeListo?: Promise<Blob | null> }).__jorgeListo
+    : undefined
+  const trabajo = (previo ?? fetch('/api/voz', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ texto: clave }),
   }).then(async (res) => {
     if (!res.ok) return null
     const blob = await res.blob()
-    if (!blob.size) return null
+    return blob.size ? blob : null
+  })).then((blob) => {
+    if (!blob?.size) return null
     guardarAudio(clave, blob)
     return blob
   }).catch(() => null).finally(() => {

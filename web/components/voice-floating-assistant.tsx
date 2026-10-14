@@ -58,7 +58,7 @@ function loadFabPosition(): { x: number; y: number } | null {
     const raw = localStorage.getItem(FAB_STORAGE_KEY_POS)
     if (!raw) return null
     const pos = JSON.parse(raw) as { x: number; y: number }
-    if (typeof pos.x === 'number' && typeof pos.y === 'number') return pos
+    if (typeof pos.x === 'number' && typeof pos.y === 'number' && !(pos.x === 0 && pos.y === 0)) return pos
   } catch {
     /* ignore */
   }
@@ -254,6 +254,7 @@ export function VoiceFloatingAssistant({
   const groupY = fabPos.y
 
   useEffect(() => {
+    if (fabPos.x === 0 && fabPos.y === 0) return
     localStorage.setItem(FAB_STORAGE_KEY_POS, JSON.stringify(fabPos))
   }, [fabPos])
 

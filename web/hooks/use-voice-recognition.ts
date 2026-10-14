@@ -26,7 +26,14 @@ function valeInterrumpir(heard: string) {
 const INACTIVITY_TIMEOUT_MS = 15000
 const SALUDO = 'Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?'
 let saludoHecho = false
+let saludoPromesa: Promise<void> | null = null
 if (typeof window !== 'undefined') prepararVoz(SALUDO)
+
+export function anticiparSaludo() {
+  if (typeof window === 'undefined' || saludoPromesa) return
+  saludoHecho = true
+  saludoPromesa = speak(SALUDO)
+}
 /** Pausa tras terminar TTS antes de reabrir el microfono (Android/iOS). */
 const POST_TTS_DELAY_MS = 500
 /** Pausa antes de reiniciar recognition tras onend vacio. */
@@ -447,6 +454,7 @@ export function useVoiceRecognition({
       sessionActiveRef.current = false
       clearInactivityTimer()
       clearRestartTimer()
+      abortCurrentCommand()
       recognition.abort()
       recognitionRef.current = null
     }
@@ -529,33 +537,37 @@ export function useVoiceRecognition({
     }
   }, [handsFree, beginSession])
 
+  const saludoArmado = useRef(false)
   useEffect(() => {
-    if (!handsFree || saludoHecho) return
-    saludoHecho = true
+    if (!handsFree || saludoArmado.current) return
+    saludoArmado.current = true
+    anticiparSaludo()
+    beginSession(false)
+    wakePhaseRef.current = false
+    esperandoRespuestaSaludoRef.current = true
+    marcarOfertaResumen(true)
 
     const saludar = () => {
-      beginSession(false)
-      wakePhaseRef.current = false
       esperandoRespuestaSaludoRef.current = true
       marcarOfertaResumen(true)
       void speak(SALUDO).finally(() => {
-        if (!getArrancoHabla()) {
-          const alTocar = () => {
-            window.removeEventListener('pointerdown', alTocar)
-            saludar()
-          }
-          window.addEventListener('pointerdown', alTocar, { once: true })
-          return
-        }
         if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
         scheduleInactivityTimeout()
       })
     }
 
-    saludar()
-    return () => {
-      if (!getArrancoHabla() && !getSpeakingText()) saludoHecho = false
-    }
+    void saludoPromesa?.finally(() => {
+      if (!getArrancoHabla()) {
+        const alTocar = () => {
+          window.removeEventListener('pointerdown', alTocar)
+          saludar()
+        }
+        window.addEventListener('pointerdown', alTocar, { once: true })
+        return
+      }
+      if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
+      scheduleInactivityTimeout()
+    })
   }, [handsFree, beginSession, scheduleInactivityTimeout])
 
   const stopListening = useCallback(() => {

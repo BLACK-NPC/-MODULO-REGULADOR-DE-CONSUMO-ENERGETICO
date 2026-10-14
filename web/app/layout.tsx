@@ -55,6 +55,11 @@ export default function RootLayout({
   return (
     <html lang="es" className="bg-background">
       <body className="font-sans antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'window.__jorgeListo=fetch("/api/voz",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:"Hola señor."})}).then(function(r){return r.ok?r.blob():null}).catch(function(){return null})',
+          }}
+        />
         <PwaRegister />
         {children}
         <Toaster theme="dark" richColors position="top-center" />
