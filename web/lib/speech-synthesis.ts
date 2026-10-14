@@ -31,6 +31,75 @@ let isSpeaking = false
 let speechRate = 0.98
 const speechPitch = 1
 let turno = 0
+let audioActual: HTMLAudioElement | null = null
+let urlActual: string | null = null
+let corteVoz: AbortController | null = null
+
+function pararReproductor() {
+  corteVoz?.abort()
+  corteVoz = null
+  if (audioActual) {
+    audioActual.onended = null
+    audioActual.onerror = null
+    audioActual.pause()
+    audioActual.removeAttribute('src')
+    audioActual.load()
+    audioActual = null
+  }
+  if (urlActual) {
+    URL.revokeObjectURL(urlActual)
+    urlActual = null
+  }
+}
+
+function decirJorge(text: string, mio: number): Promise<'ok' | 'no'> {
+  if (typeof window === 'undefined' || !text.trim()) return Promise.resolve('no')
+  const ctrl = new AbortController()
+  corteVoz = ctrl
+  return fetch('/api/voz', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ texto: text.slice(0, 600) }),
+    signal: ctrl.signal,
+  }).then(async (res) => {
+    if (!res.ok || mio !== turno) return 'no'
+    const blob = await res.blob()
+    if (mio !== turno || blob.size === 0) return 'no'
+    const url = URL.createObjectURL(blob)
+    urlActual = url
+    const audio = new Audio(url)
+    audioActual = audio
+    audio.playbackRate = Math.min(1.15, Math.max(0.85, speechRate))
+    return new Promise<'ok' | 'no'>((resolve) => {
+      const cerrar = (bien: 'ok' | 'no') => {
+        isSpeaking = false
+        if (audioActual === audio) audioActual = null
+        if (urlActual === url) {
+          URL.revokeObjectURL(url)
+          urlActual = null
+        }
+        resolve(bien)
+      }
+      audio.onplaying = () => {
+        if (mio !== turno) {
+          audio.pause()
+          cerrar('no')
+          return
+        }
+        isSpeaking = true
+        arrancoHabla = true
+      }
+      audio.onended = () => cerrar('ok')
+      audio.onerror = () => cerrar('no')
+      audio.play().then(() => {
+        if (mio !== turno) {
+          audio.pause()
+          cerrar('no')
+        }
+      }).catch(() => cerrar('no'))
+    })
+  }).catch(() => 'no')
+}
 
 const isIOS =
   typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -147,11 +216,12 @@ function vocesListas() {
 }
 
 export function speak(text: string, lang = 'es-CO'): Promise<void> {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return Promise.resolve()
+  if (typeof window === 'undefined') return Promise.resolve()
 
   const mio = ++turno
   arrancoHabla = false
   textoEnCurso = text
+  pararReproductor()
   const frases = frasesDe(text)
 
   const correr = (indice: number): Promise<void> => {
@@ -167,15 +237,18 @@ export function speak(text: string, lang = 'es-CO'): Promise<void> {
   }
 
   const pulso = window.setInterval(() => {
-    if (mio === turno && window.speechSynthesis.speaking) window.speechSynthesis.resume()
+    if (mio === turno && window.speechSynthesis?.speaking) window.speechSynthesis.resume()
   }, 4000)
 
-  return vocesListas().then(() => new Promise<void>((resolve) => {
-    window.setTimeout(resolve, 80)
-  })).then(() => {
-    if (mio !== turno) return
-    window.speechSynthesis.resume()
-    return correr(0)
+  return decirJorge(text, mio).then((resultado) => {
+    if (mio !== turno || resultado === 'ok' || !window.speechSynthesis) return
+    return vocesListas().then(() => new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 80)
+    })).then(() => {
+      if (mio !== turno) return
+      window.speechSynthesis.resume()
+      return correr(0)
+    })
   }).finally(() => {
     window.clearInterval(pulso)
     if (mio === turno) textoEnCurso = ''
@@ -188,15 +261,18 @@ export function stopSpeaking(): void {
   textoEnCurso = ''
   isSpeaking = false
   activeUtterance = null
+  pararReproductor()
   window.speechSynthesis?.cancel()
 }
 
 export function pauseSpeaking(): void {
   if (typeof window === 'undefined' || !isSpeaking) return
+  audioActual?.pause()
   window.speechSynthesis?.pause()
 }
 
 export function resumeSpeaking(): void {
   if (typeof window === 'undefined') return
+  audioActual?.play().catch(() => undefined)
   window.speechSynthesis?.resume()
 }
