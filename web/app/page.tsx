@@ -24,15 +24,19 @@ import { type HmiCommandResult } from '@/lib/hmi-command'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { fetchWeatherSummary } from '@/lib/weather'
 import { anticiparSaludo } from '@/hooks/use-voice-recognition'
+import { mensajeNoEntendi } from '@/lib/voice-suggest'
+import { frases } from '@/lib/voice-frases'
 import { stopSpeaking, getSpeechRate, setSpeechRate, speak } from '@/lib/speech-synthesis'
 import { continueDialog, runExt, type ExtCtx } from '@/lib/voice-ext-run'
 import { continueLearn, ejecutarAprendida, ofrecerAprender, type AccionPantalla } from '@/lib/voice-learn'
-import { Loader2 } from 'lucide-react'
+import { PresentacionIcono } from '@/components/presentacion-icono'
 
 const DEFAULT_WEATHER_CITY = 'Cali'
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<DashboardPage>('home')
+  const [presentacionLista, setPresentacionLista] = useState(false)
+  const marcarPresentacion = useCallback(() => setPresentacionLista(true), [])
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [currentPage])
@@ -103,7 +107,7 @@ export default function Dashboard() {
     }
 
     if (intent.type === 'GREET') {
-      return `Hola. ${APP_NAME} listo. Di "ayuda" para escuchar los comandos disponibles.`
+      return frases.saludo()
     }
 
     if (intent.type === 'HELP') {
@@ -140,7 +144,7 @@ export default function Dashboard() {
     if (intent.type === 'NAVIGATE') {
       setCurrentPage(intent.page)
       const label = PAGE_LABELS[intent.page] ?? intent.page
-      const message = `Abriendo ${label}`
+      const message = frases.abriendo(label)
       toast.success(message)
       return message
     }
@@ -204,7 +208,7 @@ export default function Dashboard() {
       }
     }
 
-    const fallback = 'Comando no reconocido. Di "ayuda" para ver opciones.'
+    const fallback = mensajeNoEntendi(intent.raw)
     toast.error(fallback)
     return fallback
   }, [data, sendHmiCommand, isDemo, lastHeartbeatAt, getExtCtx])
@@ -215,15 +219,8 @@ export default function Dashboard() {
     window.setTimeout(() => window.dispatchEvent(new CustomEvent('ecopulse-monitoreo', { detail: accion })), 350)
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">Conectando con Firebase...</p>
-        </div>
-      </div>
-    )
+  if (!presentacionLista || loading) {
+    return <PresentacionIcono onListo={marcarPresentacion} />
   }
 
   if (error) {
