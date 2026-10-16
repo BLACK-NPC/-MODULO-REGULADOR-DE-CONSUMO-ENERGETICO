@@ -10,7 +10,7 @@ export function PwaRegister() {
 
     const register = async () => {
       try {
-        await navigator.serviceWorker.register('/sw.js')
+        await navigator.serviceWorker.register('/sw.js?v=4')
       } catch (error) {
         console.warn('No se pudo registrar el service worker:', error)
       }
