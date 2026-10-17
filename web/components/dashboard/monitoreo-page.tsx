@@ -719,8 +719,8 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
                   <YAxis yAxisId="clima" stroke={COLORES.temperatura} domain={dominioClima} width={36} hide={!enCombinada.includes('temperatura')} />
                   <YAxis yAxisId="escala" orientation="right" stroke={enCombinada.includes('potencia') ? COLORES.potencia : COLORES.humedad} domain={dominioEscala} width={36} hide={!enCombinada.includes('humedad') && !enCombinada.includes('potencia')} />
                   <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} labelFormatter={(valor) => grafica.formato(Number(valor))} />
-                  {grafica.marca10 !== null ? <ReferenceLine x={grafica.marca10} stroke="#c8c8c8" strokeDasharray="3 3" label={{ value: '10 min', fill: '#c8c8c8', fontSize: 10, position: 'insideTop' }} /> : null}
-                  {horaMarcada !== null && (escala === 'horas' || !esHoy) ? <ReferenceLine x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
+                  {grafica.marca10 !== null ? <ReferenceLine yAxisId={enCombinada.includes('temperatura') ? 'clima' : 'escala'} x={grafica.marca10} stroke="#c8c8c8" strokeDasharray="3 3" label={{ value: '10 min', fill: '#c8c8c8', fontSize: 10, position: 'insideTop' }} /> : null}
+                  {horaMarcada !== null && (escala === 'horas' || !esHoy) ? <ReferenceLine yAxisId={enCombinada.includes('temperatura') ? 'clima' : 'escala'} x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
                   {enCombinada.includes('potencia') ? (
                     <Line yAxisId="escala" type="monotone" dataKey="potencia" name="W" stroke={COLORES.potencia} strokeWidth={2} dot={false} connectNulls={false} />
                   ) : null}
@@ -946,7 +946,7 @@ function PanelSeparado({
               <XAxis type="number" dataKey="x" domain={dominioX(serie)} stroke="#666" ticks={porHoras ? undefined : ticks} tickFormatter={formato} padding={{ left: 0, right: 0 }} />
               <YAxis stroke={COLORES[metrica]} width={40} domain={dominio} unit={unidad} />
               <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: 8 }} labelFormatter={(valor) => formato(Number(valor))} />
-              {horaMarcada !== null && porHoras ? <ReferenceLine x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
+              {horaMarcada !== null && porHoras ? <ReferenceLine yAxisId={0} x={horaMarcada} stroke="#f2f7f4" strokeDasharray="3 3" /> : null}
               <Line type="monotone" dataKey={metrica} name={titulo} stroke={COLORES[metrica]} strokeWidth={2} dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
