@@ -483,7 +483,7 @@ export function CentroVoz({ data, onUpdate, onBack, onNavigate, isDemo = false, 
 
         <Seccion titulo="Comandos del asistente" className="md:col-span-2">
           <p className="text-xs text-muted-foreground">
-            Frases que Hey Eco ya entiende. Para enseñar otra forma de decirlas, usa Mis comandos, mas abajo.
+            Frases que Hey Dux ya entiende. Para enseñar otra forma de decirlas, usa Mis comandos, mas abajo.
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             {VOICE_COMMAND_GROUPS.map((grupo) => (

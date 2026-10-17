@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseIntent, type VoiceIntent, marcarOfertaResumen } from '@/components/voice-assistant'
 import { speak, stopSpeaking, esEcoDeLaVoz, getSpeakingText, getArrancoHabla, prepararVoz } from '@/lib/speech-synthesis'
 import { detectWakeWord, fixEco, splitWake, stripWakeWords } from '@/lib/wake-word'
+import { mensajeNoEntendi } from '@/lib/voice-suggest'
+import { frases } from '@/lib/voice-frases'
 
 export type VoiceRecognitionStatus =
   | 'idle'
@@ -31,17 +33,36 @@ if (typeof window !== 'undefined') prepararVoz(SALUDO)
 
 export function anticiparSaludo() {
   if (typeof window === 'undefined' || saludoPromesa) return
+  if ((window as Window & { __recargando?: number }).__recargando) return
   saludoHecho = true
-  saludoPromesa = speak(SALUDO)
+  // El reintento por toque del saludo lo gestiona el hook (alTocar), junto con la oferta de resumen.
+  saludoPromesa = speak(SALUDO, 'es-CO', { reintentar: false })
 }
 /** Pausa tras terminar TTS antes de reabrir el microfono (Android/iOS). */
 const POST_TTS_DELAY_MS = 500
 /** Pausa antes de reiniciar recognition tras onend vacio. */
 const RESTART_DELAY_MS = 300
+/**
+ * En Android Chrome cierra el microfono solo (continuous no se respeta) y cada
+ * recognition.start() muestra el aviso del sistema. Reabrirlo al instante parece
+ * que el microfono parpadea y, si coincide con el audio, corta la voz de Jorge.
+ */
+const RESTART_DELAY_ANDROID_MS = 1200
+
+function esAndroid() {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
+}
+/** Silencio minimo tras la voz de Jorge antes de abrir el microfono (cola del eco). */
+const COLA_ECO_MS = 650
+/** Cada cuanto se comprueba si Jorge empezo a hablar con el microfono abierto. */
+const VIGILANTE_VOZ_MS = 150
+/** Confianza minima de una frase final; 0 = el navegador no la informa y se acepta. */
+const MIN_CONFIANZA = 0.45
+const MIN_CONFIANZA_WAKE = 0.55
 
 interface UseVoiceRecognitionOptions {
   lang?: 'es-CO' | 'es-ES'
-  /** Si true, la primera frase debe ser "Hey Eco" antes de aceptar comandos. */
+  /** Si true, la primera frase debe ser "Hey Dux" antes de aceptar comandos. */
   requireWakeWord?: boolean
   /** Arranca la escucha al abrir la pagina, sin pulsar el microfono. */
   handsFree?: boolean
@@ -81,6 +102,15 @@ export function useVoiceRecognition({
   const pausedByUserRef = useRef(false)
   const interrumpioVozRef = useRef(false)
   const esperandoRespuestaSaludoRef = useRef(false)
+  /** true mientras el reconocedor tiene el microfono abierto. */
+  const micAbiertoRef = useRef(false)
+  /** Ultimo instante en que se vio hablar a Jorge (turnos sin solapar). */
+  const ultimaVozRef = useRef(0)
+  /** Pulsar para hablar: true mientras el boton esta mantenido. */
+  const pushRef = useRef(false)
+  /** Lo dicho en tramos mientras se mantiene pulsado; se envia al soltar. */
+  const pushBufferRef = useRef('')
+  const [pushActivo, setPushActivo] = useState(false)
   const beginRef = useRef<(fromGesture: boolean) => void>(() => {})
   handsFreeRef.current = handsFree
 
@@ -117,6 +147,9 @@ export function useVoiceRecognition({
     sessionActiveRef.current = false
     busyRef.current = false
     pendingTranscriptRef.current = ''
+    pushRef.current = false
+    pushBufferRef.current = ''
+    setPushActivo(false)
     abortCurrentCommand()
     clearInactivityTimer()
     clearRestartTimer()
@@ -134,10 +167,12 @@ export function useVoiceRecognition({
     clearInactivityTimer()
     if (!sessionActiveRef.current) return
     if (getSpeakingText()) return
+    if (pushRef.current) return
     if (wakePhaseRef.current && !esperandoRespuestaSaludoRef.current) return
 
     inactivityTimerRef.current = setTimeout(() => {
       if (!sessionActiveRef.current) return
+      if (pushRef.current) return
       if (getSpeakingText() || busyRef.current) {
         scheduleInactivityTimeout()
         return
@@ -163,7 +198,7 @@ export function useVoiceRecognition({
         recognitionRef.current?.stop()
       }
 
-      void speak('Control por voz desactivado por falta de respuesta.', lang).finally(() => {
+      void speak(frases.retiro(), lang).finally(() => {
         busyRef.current = false
         setStatus('idle')
         setTranscript('')
@@ -177,18 +212,33 @@ export function useVoiceRecognition({
     if (!recognition || !sessionActiveRef.current) return
     if (busyRef.current && !getSpeakingText()) return
 
-    clearRestartTimer()
-    restartTimerRef.current = setTimeout(() => {
-      if (!sessionActiveRef.current) return
-      if (busyRef.current && !getSpeakingText()) return
+    const armar = (espera: number) => {
+      clearRestartTimer()
+      restartTimerRef.current = setTimeout(() => {
+        if (!sessionActiveRef.current) return
+        if (busyRef.current && !getSpeakingText()) return
 
-      pendingTranscriptRef.current = ''
-      try {
-        recognition.start()
-      } catch {
-        /* ya en ejecucion */
-      }
-    }, delayMs)
+        // Turnos: el microfono no se abre mientras Jorge habla ni justo despues.
+        if (getSpeakingText()) {
+          ultimaVozRef.current = Date.now()
+          armar(POST_TTS_DELAY_MS)
+          return
+        }
+        const falta = COLA_ECO_MS - (Date.now() - ultimaVozRef.current)
+        if (falta > 0) {
+          armar(falta)
+          return
+        }
+
+        pendingTranscriptRef.current = ''
+        try {
+          recognition.start()
+        } catch {
+          /* ya en ejecucion */
+        }
+      }, espera)
+    }
+    armar(delayMs)
   }, [clearRestartTimer])
 
   /** Reinicia el microfono SOLO despues de que termina el TTS (patron HTML onend). */
@@ -217,7 +267,7 @@ export function useVoiceRecognition({
         if (!heard.command) {
           setStatus('speaking')
           clearInactivityTimer()
-          await speak('Te escucho.', lang)
+          await speak(frases.teEscucho(), lang)
           if (sessionActiveRef.current) resumeListeningAfterSpeech()
           else busyRef.current = false
           return
@@ -265,8 +315,8 @@ export function useVoiceRecognition({
       if (message) {
         setResponseText(message)
       } else if (intent.type === 'UNKNOWN') {
-        setResponseText('Comando no reconocido')
-        message = 'Comando no reconocido'
+        message = mensajeNoEntendi(intent.raw)
+        setResponseText(message)
       }
 
       if (commandAbortRef.current === abortController) {
@@ -277,9 +327,8 @@ export function useVoiceRecognition({
 
       if (message && sessionActiveRef.current) {
         setStatus('speaking')
-        const habla = speak(message, lang)
-        tryStartListening(200)
-        await habla
+        // Turnos: el microfono se reabre solo cuando Jorge termina (resumeListeningAfterSpeech).
+        await speak(message, lang)
       }
 
       if (
@@ -315,11 +364,12 @@ export function useVoiceRecognition({
     const GrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList
     if (GrammarList) {
       const grammars = new GrammarList()
-      grammars.addFromString('#JSGF V1.0; grammar eco; public <wake> = hey eco | eco | hey echo | echo;', 1)
+      grammars.addFromString('#JSGF V1.0; grammar dux; public <wake> = hey dux | dux | hey ducks | ducks;', 1)
       recognition.grammars = grammars
     }
 
     recognition.onstart = () => {
+      micAbiertoRef.current = true
       if (!sessionActiveRef.current) return
       setStatus(wakePhaseRef.current ? 'wake' : 'listening')
       setErrorMsg('')
@@ -328,22 +378,42 @@ export function useVoiceRecognition({
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       if (!sessionActiveRef.current) return
+      // Turnos: lo que entra mientras Jorge habla es su propio eco o ruido, nunca una orden.
+      if (getSpeakingText()) {
+        pendingTranscriptRef.current = ''
+        return
+      }
 
       let interim = ''
       let allFinal = ''
+      let descartado = false
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i]
         let text = result[0]?.transcript ?? ''
+        // La confianza es la de la frase tal como la oyo el motor, aunque se cambie por una alternativa con "eco".
+        const confianza = result[0]?.confidence ?? 0
         for (let alt = 1; alt < result.length; alt++) {
           const option = result[alt]?.transcript ?? ''
           if (option && detectWakeWord(option) && !detectWakeWord(text)) text = option
         }
         text = fixEco(text)
         if (result.isFinal) {
+          // Voz lejana, murmullos o ruido de fondo llegan con confianza baja: se ignoran.
+          const minimo = wakePhaseRef.current ? MIN_CONFIANZA_WAKE : MIN_CONFIANZA
+          if (confianza > 0 && confianza < minimo) {
+            descartado = true
+            continue
+          }
           allFinal += text
         } else if (i >= event.resultIndex) {
           interim += text
         }
+      }
+
+      if (descartado && !allFinal) {
+        pendingTranscriptRef.current = ''
+        setTranscript('')
+        return
       }
 
       const spoken = (allFinal || interim).trim()
@@ -413,10 +483,21 @@ export function useVoiceRecognition({
     }
 
     recognition.onend = () => {
+      micAbiertoRef.current = false
       if (!sessionActiveRef.current) return
 
-      const text = pendingTranscriptRef.current.trim()
+      const hablado = pendingTranscriptRef.current.trim()
       pendingTranscriptRef.current = ''
+
+      // Pulsar para hablar: mientras se mantiene el boton se acumula lo dicho y el microfono
+      // se reabre tras cada pausa; la orden se envia al soltar.
+      if (pushRef.current) {
+        if (hablado) pushBufferRef.current = `${pushBufferRef.current} ${hablado}`.trim()
+        tryStartListening(80)
+        return
+      }
+      const text = pushBufferRef.current ? `${pushBufferRef.current} ${hablado}`.trim() : hablado
+      pushBufferRef.current = ''
 
       if (text && getSpeakingText() && !valeInterrumpir(text) && !interrumpioVozRef.current) {
         tryStartListening(200)
@@ -443,14 +524,30 @@ export function useVoiceRecognition({
       }
 
       scheduleInactivityTimeout()
-      tryStartListening()
+      tryStartListening(esAndroid() ? RESTART_DELAY_ANDROID_MS : RESTART_DELAY_MS)
     }
 
     recognitionRef.current = recognition
     const armTimer = window.setTimeout(() => beginRef.current(false), 500)
 
+    // Turnos sin solapar: si Jorge empieza a hablar con el microfono abierto, se cierra
+    // y onend lo reabre (tryStartListening espera a que Jorge termine).
+    const vigilante = window.setInterval(() => {
+      if (!sessionActiveRef.current || !getSpeakingText()) return
+      ultimaVozRef.current = Date.now()
+      if (!micAbiertoRef.current) return
+      pendingTranscriptRef.current = ''
+      try {
+        recognition.abort()
+      } catch {
+        /* ya cerrado */
+      }
+    }, VIGILANTE_VOZ_MS)
+
     return () => {
       window.clearTimeout(armTimer)
+      window.clearInterval(vigilante)
+      micAbiertoRef.current = false
       sessionActiveRef.current = false
       clearInactivityTimer()
       clearRestartTimer()
@@ -483,21 +580,39 @@ export function useVoiceRecognition({
     setResponseText(null)
     setErrorMsg('')
 
+    setStatus(requireWakeWord ? 'wake' : 'listening')
+    scheduleInactivityTimeout()
+
+    // No abrir el microfono mientras Jorge habla. En Android el microfono se queda
+    // con el audio del telefono y la frase se oye cortada.
+    if (getSpeakingText()) {
+      tryStartListening(POST_TTS_DELAY_MS)
+      return
+    }
+
     try {
       recognition.start()
-      setStatus(requireWakeWord ? 'wake' : 'listening')
-      scheduleInactivityTimeout()
     } catch {
       sessionActiveRef.current = false
       setStatus('idle')
     }
-  }, [requireWakeWord, scheduleInactivityTimeout])
+  }, [requireWakeWord, scheduleInactivityTimeout, tryStartListening])
   beginRef.current = beginSession
 
   const startListening = useCallback(() => {
     if (status === 'unsupported') return
 
     if (sessionActiveRef.current) {
+      // El boton calla a Jorge sin cerrar la sesion; el microfono se reabre solo.
+      if (getSpeakingText()) {
+        abortCurrentCommand()
+        busyRef.current = false
+        setResponseText(null)
+        setStatus(wakePhaseRef.current ? 'wake' : 'listening')
+        scheduleInactivityTimeout()
+        tryStartListening(POST_TTS_DELAY_MS)
+        return
+      }
       if (wakePhaseRef.current) {
         wakePhaseRef.current = false
         pausedByUserRef.current = false
@@ -512,7 +627,74 @@ export function useVoiceRecognition({
 
     pausedByUserRef.current = false
     beginSession(true)
-  }, [status, stopSession, beginSession])
+  }, [status, stopSession, beginSession, abortCurrentCommand, scheduleInactivityTimeout, tryStartListening])
+
+  /** Pulsar para hablar (inicio): sin "Hey Dux", el microfono escucha solo mientras se mantiene el boton. */
+  const startPush = useCallback(() => {
+    const recognition = recognitionRef.current
+    if (!recognition || pushRef.current) return
+
+    pausedByUserRef.current = false
+    pushRef.current = true
+    pushBufferRef.current = ''
+    setPushActivo(true)
+    clearInactivityTimer()
+
+    // Si Jorge hablaba o habia una orden en curso, se corta: ahora habla el usuario.
+    if (getSpeakingText() || busyRef.current) {
+      abortCurrentCommand()
+      busyRef.current = false
+      setResponseText(null)
+    }
+    ultimaVozRef.current = 0
+
+    if (!sessionActiveRef.current) beginSession(true)
+    wakePhaseRef.current = false
+    setTranscript('')
+    setStatus('listening')
+
+    if (!micAbiertoRef.current) {
+      clearRestartTimer()
+      try {
+        recognition.start()
+      } catch {
+        /* ya en ejecucion */
+      }
+    }
+  }, [abortCurrentCommand, beginSession, clearInactivityTimer, clearRestartTimer])
+
+  /** Pulsar para hablar (fin): cierra el microfono y envia lo dicho. */
+  const endPush = useCallback(() => {
+    if (!pushRef.current) return
+    pushRef.current = false
+    setPushActivo(false)
+
+    const recognition = recognitionRef.current
+    if (!recognition || !sessionActiveRef.current) return
+
+    if (micAbiertoRef.current) {
+      // stop() entrega el resultado final; onend procesa lo acumulado.
+      try {
+        recognition.stop()
+      } catch {
+        /* ya cerrado */
+      }
+      return
+    }
+
+    // El microfono estaba entre dos reinicios: se envia lo que ya se tenia.
+    clearRestartTimer()
+    const texto = `${pushBufferRef.current} ${pendingTranscriptRef.current}`.trim()
+    pushBufferRef.current = ''
+    pendingTranscriptRef.current = ''
+    if (texto && !busyRef.current) {
+      busyRef.current = true
+      void processFinalTranscript(texto)
+      return
+    }
+    scheduleInactivityTimeout()
+    tryStartListening()
+  }, [clearRestartTimer, processFinalTranscript, scheduleInactivityTimeout, tryStartListening])
 
   useEffect(() => {
     if (handsFree) return
@@ -555,12 +737,9 @@ export function useVoiceRecognition({
       }
       const alTocar = () => {
         window.removeEventListener('pointerdown', alTocar)
-        const marca = window as Window & { __saludoNav?: number; __saludoFin?: number }
-        marca.__saludoNav = 0
-        marca.__saludoFin = 0
         esperandoRespuestaSaludoRef.current = true
         marcarOfertaResumen(true)
-        void speak(SALUDO).finally(() => {
+        void speak(SALUDO, 'es-CO', { reintentar: false }).finally(() => {
           if (!sessionActiveRef.current || !esperandoRespuestaSaludoRef.current) return
           scheduleInactivityTimeout()
         })
@@ -585,6 +764,9 @@ export function useVoiceRecognition({
     responseText,
     errorMsg,
     startListening,
+    startPush,
+    endPush,
+    isPushToTalk: pushActivo,
     stopListening,
     clearResponse,
     isListening: status === 'listening' || status === 'wake',

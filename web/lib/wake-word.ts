@@ -1,7 +1,7 @@
-/** El reconocedor casi nunca escribe "eco": lo oye como echo, eko o hecho. */
+/** El reconocedor casi nunca escribe "dux": lo oye como ducks, ducs o duks. */
 const HEY = new Set(['hey', 'ei', 'ey', 'hei'])
-const ECO = new Set(['eco', 'echo', 'eko', 'ego', 'ecco', 'ecko', 'equo', 'heco', 'eico', 'eiko', 'aiko', 'echos', 'hecho'])
-const FUSED = new Set(['heyeco', 'heyeko', 'heyecho', 'heyego', 'heyecco', 'heyheco', 'eyeco', 'eyeko', 'eyecho'])
+const DUX = new Set(['dux', 'ducks', 'ducs', 'duks', 'doox', 'ducxs'])
+const FUSED = new Set(['heydux', 'heyducks', 'heyducs', 'heyduks', 'eydux', 'eidux', 'heidux'])
 
 function tokensOf(text: string): string[] {
   return text
@@ -16,21 +16,21 @@ function tokensOf(text: string): string[] {
 function wakeSpan(tokens: string[]): { at: number; length: number } | null {
   for (let i = 0; i < tokens.length; i++) {
     if (FUSED.has(tokens[i])) return { at: i, length: 1 }
-    if (i < tokens.length - 1 && HEY.has(tokens[i]) && ECO.has(tokens[i + 1])) return { at: i, length: 2 }
+    if (i < tokens.length - 1 && HEY.has(tokens[i]) && DUX.has(tokens[i + 1])) return { at: i, length: 2 }
   }
-  if (tokens.length > 0 && ECO.has(tokens[0])) return { at: 0, length: 1 }
+  if (tokens.length > 0 && DUX.has(tokens[0])) return { at: 0, length: 1 }
   return null
 }
 
-/** true si la frase es "Hey Eco", solo "eco", o una transcripcion cercana (echo, hecho...). */
-export function detectWakeWord(text: string): 'hey eco' | null {
+/** true si la frase es "Hey Dux", solo "dux", o una transcripcion cercana (ducks, ducs...). */
+export function detectWakeWord(text: string): 'hey dux' | null {
   if (!text) return null
-  return wakeSpan(tokensOf(text)) ? 'hey eco' : null
+  return wakeSpan(tokensOf(text)) ? 'hey dux' : null
 }
 
 /**
  * Quita la frase de activacion del inicio.
- * "hey echo enciende el motor" → "enciende el motor".
+ * "hey dux enciende el motor" → "enciende el motor".
  */
 export function stripWakeWords(text: string): string {
   const tokens = tokensOf(text)
@@ -47,7 +47,7 @@ export function splitWake(text: string): { woke: boolean; command: string } {
   return { woke: true, command: tokens.slice(span.at + span.length).join(' ').trim() }
 }
 
-/** Muestra "eco" cuando el reconocedor escribio echo, eko u otra forma clara del nombre. */
+/** Muestra "dux" cuando el reconocedor escribio ducks, ducs u otra forma clara del nombre. */
 export function fixEco(text: string): string {
-  return text.replace(/\b(echo|eko|ecko|ecco|equo|heco|eico|eiko|aiko|echos)\b/gi, 'eco')
+  return text.replace(/\b(ducks|ducs|duks|doox|ducxs)\b/gi, 'dux')
 }

@@ -41,6 +41,8 @@ const MENU_WIDTH = 280
 const GAP = 10
 const MARGIN = 16
 const BUBBLE_AUTO_HIDE_MS = 5000
+/** Tiempo mantenido el boton para pasar a pulsar para hablar. */
+const LONG_PRESS_MS = 500
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -136,6 +138,9 @@ export function VoiceFloatingAssistant({
     responseText,
     errorMsg,
     startListening,
+    startPush,
+    endPush,
+    isPushToTalk,
     clearResponse,
     isListening,
     isWakePhase,
@@ -241,8 +246,44 @@ export function VoiceFloatingAssistant({
     }
   }, [])
 
+  // Mantener pulsado el microfono = pulsar para hablar (sin "Hey Dux", se envia al soltar).
+  const pushTimer = useRef<number | null>(null)
+  const pushActive = useRef(false)
+  const suppressTapUntil = useRef(0)
+
+  const cancelPushTimer = useCallback(() => {
+    if (pushTimer.current !== null) {
+      window.clearTimeout(pushTimer.current)
+      pushTimer.current = null
+    }
+  }, [])
+
+  const armPushTimer = useCallback(() => {
+    cancelPushTimer()
+    pushTimer.current = window.setTimeout(() => {
+      pushTimer.current = null
+      if (!dragging.current || totalMove.current >= DRAG_THRESHOLD) return
+      pushActive.current = true
+      navigator.vibrate?.(25)
+      startPush()
+    }, LONG_PRESS_MS)
+  }, [cancelPushTimer, startPush])
+
+  /** Al soltar: true si el gesto era pulsar para hablar (entonces no cuenta como toque). */
+  const releasePush = useCallback(() => {
+    cancelPushTimer()
+    if (!pushActive.current) return false
+    pushActive.current = false
+    suppressTapUntil.current = Date.now() + 500
+    endPush()
+    return true
+  }, [cancelPushTimer, endPush])
+
+  useEffect(() => cancelPushTimer, [cancelPushTimer])
+
   const activateFab = useCallback(() => {
     const now = Date.now()
+    if (now < suppressTapUntil.current) return
     if (now - lastFabActivateMs.current < 350) return
     lastFabActivateMs.current = now
     startListening()
@@ -285,9 +326,11 @@ export function VoiceFloatingAssistant({
       const onFab = fabButtonRef.current?.contains(target)
       if (!onFab) {
         e.currentTarget.setPointerCapture(e.pointerId)
+      } else {
+        armPushTimer()
       }
     },
-    [fabPos]
+    [fabPos, armPushTimer]
   )
 
   const onGroupPointerMove = useCallback(
@@ -297,6 +340,10 @@ export function VoiceFloatingAssistant({
       const dx = e.clientX - startPointer.current.x
       const dy = e.clientY - startPointer.current.y
       totalMove.current = Math.sqrt(dx * dx + dy * dy)
+
+      // Mientras se pulsa para hablar el boton no se arrastra.
+      if (pushActive.current) return
+      if (totalMove.current >= DRAG_THRESHOLD) cancelPushTimer()
 
       if (
         totalMove.current >= DRAG_THRESHOLD &&
@@ -318,7 +365,7 @@ export function VoiceFloatingAssistant({
         )
       )
     },
-    [commandsMenuOpen]
+    [commandsMenuOpen, cancelPushTimer]
   )
 
   const endPointerInteraction = useCallback(
@@ -332,6 +379,11 @@ export function VoiceFloatingAssistant({
         groupRef.current.releasePointerCapture(e.pointerId)
       }
 
+      if (releasePush()) {
+        totalMove.current = 0
+        return
+      }
+
       const tappedFab = fabButtonRef.current?.contains(e.target as Node)
       if (tappedFab && totalMove.current < DRAG_THRESHOLD) {
         activateFab()
@@ -341,7 +393,7 @@ export function VoiceFloatingAssistant({
 
       totalMove.current = 0
     },
-    [activateFab, pointerOverDock]
+    [activateFab, pointerOverDock, releasePush]
   )
 
   const onDockPointerDown = useCallback(
@@ -353,12 +405,16 @@ export function VoiceFloatingAssistant({
       activePointerId.current = e.pointerId
       startPointer.current = { x: e.clientX, y: e.clientY }
       const pointerId = e.pointerId
+      armPushTimer()
 
       const move = (ev: PointerEvent) => {
         if (ev.pointerId !== pointerId || !dragging.current) return
         const dx = ev.clientX - startPointer.current.x
         const dy = ev.clientY - startPointer.current.y
         totalMove.current = Math.hypot(dx, dy)
+        // Mientras se pulsa para hablar el boton no se arrastra.
+        if (pushActive.current) return
+        if (totalMove.current >= DRAG_THRESHOLD) cancelPushTimer()
         if (dockedRef.current) {
           if (!pointerLeftDock(ev.clientX, ev.clientY)) return
           const next = clampFabPosition(
@@ -387,6 +443,10 @@ export function VoiceFloatingAssistant({
         window.removeEventListener('pointercancel', up)
         dragging.current = false
         activePointerId.current = null
+        if (releasePush()) {
+          totalMove.current = 0
+          return
+        }
         if (totalMove.current < DRAG_THRESHOLD) {
           activateFab()
         } else if (!dockedRef.current && pointerOverDock(ev.clientX, ev.clientY)) {
@@ -399,7 +459,7 @@ export function VoiceFloatingAssistant({
       window.addEventListener('pointerup', up)
       window.addEventListener('pointercancel', up)
     },
-    [activateFab, pointerLeftDock, pointerOverDock]
+    [activateFab, pointerLeftDock, pointerOverDock, armPushTimer, cancelPushTimer, releasePush]
   )
 
   const onGroupPointerUp = useCallback(
@@ -438,6 +498,7 @@ export function VoiceFloatingAssistant({
       ref={fabButtonRef}
       type="button"
       onClick={dockedHere ? undefined : handleFabClick}
+      onContextMenu={(e) => e.preventDefault()}
       onPointerDown={dockedHere ? onDockPointerDown : undefined}
       aria-label={
         isListening || isProcessing
@@ -486,7 +547,9 @@ export function VoiceFloatingAssistant({
                 <Waves className="h-4 w-4 text-emerald-400 animate-pulse shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-emerald-300">
-                    {isWakePhase ? 'Di "Hey Eco"...' : 'Escuchando...'}
+                    {isPushToTalk
+                      ? 'Habla ahora... suelta para enviar'
+                      : isWakePhase ? 'Di "Hey Dux"...' : 'Escuchando...'}
                   </p>
                   {transcript && (
                     <p className="text-sm text-white/80 mt-1 truncate">{transcript}</p>

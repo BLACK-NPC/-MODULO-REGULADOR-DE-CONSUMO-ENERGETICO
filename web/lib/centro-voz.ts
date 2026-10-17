@@ -88,7 +88,7 @@ export type AjustesVoz = {
 
 export const AJUSTES_INICIALES: AjustesVoz = {
   sensibilidad: 75,
-  palabra: 'ecopulse',
+  palabra: 'dux',
   palabraActiva: false,
   continua: false,
   hablar: true,
@@ -135,7 +135,9 @@ export function importarCentroVoz(
           activo: c.activo !== false,
         }))
     : base.comandos
-  return { ajustes: { ...base.ajustes, ...(d.ajustes ?? {}) }, comandos }
+  const ajustes = { ...base.ajustes, ...(d.ajustes ?? {}) }
+  if (!ajustes.palabra || ajustes.palabra.trim().toLowerCase() === 'ecopulse') ajustes.palabra = 'dux'
+  return { ajustes, comandos }
 }
 
 /* ---- lenguaje ---- */

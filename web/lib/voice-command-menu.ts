@@ -109,7 +109,7 @@ export const VOICE_COMMAND_GROUPS = [
   {
     label: 'Voz',
     commands: [
-      { cmd: 'Hey Eco', desc: 'Despierta al asistente despues de tocar el microfono' },
+      { cmd: 'Hey Dux', desc: 'Despierta al asistente despues de tocar el microfono' },
       { cmd: 'Hola', desc: 'Saludo, una vez que ya esta escuchando' },
       { cmd: 'Ayuda', desc: 'Escucha que puedes decir' },
       { cmd: 'Mas rapido', desc: 'Aumenta velocidad de voz' },

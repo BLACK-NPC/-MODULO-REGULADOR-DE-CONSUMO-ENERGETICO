@@ -24,7 +24,7 @@ export function saludoDelDia(fecha: Date = new Date()): string {
 }
 
 export const frases = {
-  /** Despierta con "Hey Eco" sin orden. */
+  /** Despierta con "Hey Dux" sin orden. */
   teEscucho: () => variar('escucho', ['Dígame, señor.', 'Lo escucho, señor.', 'A sus órdenes, señor.']),
 
   /** La sesion termino por falta de respuesta (hay que tocar el microfono para volver). */
