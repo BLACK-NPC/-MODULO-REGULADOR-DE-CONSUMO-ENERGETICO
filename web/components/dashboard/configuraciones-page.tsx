@@ -47,6 +47,8 @@ import { currentProfile, formatSchedule, loadSmartProfileStore, SMART_PROFILES_E
 import { activeEquipo, loadEquipo } from '@/lib/page-equipo'
 import { buildVerificacionFalla } from '@/lib/verificacion-falla'
 import type { HmiCommandResult } from '@/lib/hmi-command'
+import { sendRemoteCommand } from '@/lib/firebase-remote-command'
+import { toast } from 'sonner'
 
 interface ConfiguracionesPageProps {
   data: AVCData
@@ -267,6 +269,13 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
 
   function send(path: string, value: unknown) {
     void onUpdate(path, value)
+  }
+
+  function enviarRegla(fields: Record<string, unknown>) {
+    void sendRemoteCommand(fields).then((result) => {
+      if (result.ok) toast.success(result.mensaje)
+      else toast.error(result.mensaje)
+    })
   }
 
   function toggleGroup(key: 'hum' | 'temp' | 'pow') {
@@ -797,7 +806,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
             <ArrowLeft className="w-4 h-4" />
             Sistema
           </button>
-          <DatosAlmacenados data={data} onToggle={(path, value) => send(path, value)} />
+          <DatosAlmacenados data={data} onToggle={(path, value) => send(path, value)} onEnviar={enviarRegla} />
         </div>
       ) : null}
 

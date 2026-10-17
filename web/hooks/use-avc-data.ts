@@ -54,6 +54,13 @@ export interface AVCData {
     spMax: number
     dht: number
   }
+  reglas?: {
+    dias: number
+    auto: boolean
+    autoDias: number
+    desde: number[]
+    hasta: number[]
+  }
   sistema: {
     brillo: number
     brilloOn: boolean
@@ -97,6 +104,19 @@ function normalizeHistoryDay(value: unknown): AVCHistoryDay {
     potencia: Array.isArray(source.potencia) ? source.potencia.map((item) => toNumber(item)) : [],
     temperatura: Array.isArray(source.temperatura) ? source.temperatura.map((item) => toNumber(item)) : [],
     humedad: Array.isArray(source.humedad) ? source.humedad.map((item) => toNumber(item)) : [],
+  }
+}
+
+function normalizeReglas(value: unknown): AVCData['reglas'] {
+  if (!value || typeof value !== 'object') return undefined
+  const source = value as Record<string, unknown>
+  const hora = (key: string, fallback: number) => Math.min(23, Math.max(0, Math.round(toNumber(source[key], fallback))))
+  return {
+    dias: toNumber(source.dias, 0x7f) & 0x7f,
+    auto: toBoolean(source.auto),
+    autoDias: Math.min(7, Math.max(1, Math.round(toNumber(source.autoDias, 5)))),
+    desde: Array.from({ length: 7 }, (_, index) => hora(`desde${index}`, 0)),
+    hasta: Array.from({ length: 7 }, (_, index) => hora(`hasta${index}`, 23)),
   }
 }
 
@@ -185,6 +205,7 @@ function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | nu
       spMax: toNumber(config.spMax, 100),
       dht: toNumber(config.dht, 11) === 22 ? 22 : 11,
     },
+    reglas: normalizeReglas(source.reglas),
     sistema: {
       brillo: toNumber(sistema.brillo, 80),
       brilloOn: optionalBool(sistema.brilloOn, true),

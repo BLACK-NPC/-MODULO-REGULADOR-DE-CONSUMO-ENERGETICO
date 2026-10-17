@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
 import { Switch } from '@/components/ui/switch'
 import type { AVCData } from '@/hooks/use-avc-data'
 import { hourlySeries, type Metric } from '@/lib/voice-history'
@@ -92,17 +91,43 @@ function franja(valores: (number | null)[]) {
   return { desde: horas[0], hasta: horas[horas.length - 1], n: horas.length }
 }
 
+function indiceHmi(corto: DiaClave) {
+  return DIAS.findIndex((dia) => dia.corto === corto)
+}
+
+function reglasDesdeEquipo(reglas: NonNullable<AVCData['reglas']>): ReglasDatos {
+  return {
+    recordDays: DIAS.filter((_, index) => (reglas.dias & (1 << index)) !== 0).map((dia) => dia.corto),
+    dayHours: Object.fromEntries(
+      DIAS.map((dia, index) => [dia.corto, { from: reglas.desde[index] ?? 0, to: reglas.hasta[index] ?? 23 }]),
+    ) as Record<DiaClave, HorasDia>,
+    autoDelete: { enabled: reglas.auto, afterDays: reglas.autoDias },
+  }
+}
+
 export function DatosAlmacenados({
   data,
   onToggle,
+  onEnviar,
 }: {
   data: AVCData
   onToggle: (path: string, value: boolean) => void
+  onEnviar: (fields: Record<string, unknown>) => void
 }) {
   const [tab, setTab] = useState<'general' | 'carpetas' | 'mapa' | 'reglas'>('general')
   const [reglasVista, setReglasVista] = useState<'menu' | 'dias' | 'borrado'>('menu')
   const [diaEdit, setDiaEdit] = useState<DiaClave>('Lun')
   const [reglas, setReglas] = useState<ReglasDatos>(cargarReglas)
+  const firmaReglas = data.reglas
+    ? `${data.reglas.dias}|${data.reglas.auto}|${data.reglas.autoDias}|${data.reglas.desde.join(',')}|${data.reglas.hasta.join(',')}`
+    : ''
+  useEffect(() => {
+    if (!data.reglas || !firmaReglas) return
+    const siguiente = reglasDesdeEquipo(data.reglas)
+    setReglas(siguiente)
+    guardarReglas(siguiente)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firmaReglas])
   const [carpeta, setCarpeta] = useState<Metric | null>(null)
   const [mapa, setMapa] = useState<Metric>('temperatura')
   const [celda, setCelda] = useState('')
@@ -112,10 +137,17 @@ export function DatosAlmacenados({
     humedad: data.config.guardarHumedad,
     potencia: data.config.guardarPotencia,
   }
-  function ponerReglas(siguiente: ReglasDatos, aviso?: string) {
+  function ponerReglas(siguiente: ReglasDatos, fields: Record<string, unknown>) {
     setReglas(siguiente)
     guardarReglas(siguiente)
-    if (aviso) toast.success(aviso)
+    onEnviar(fields)
+  }
+
+  function fijarHora(from: number, to: number) {
+    ponerReglas(
+      { ...reglas, dayHours: { ...reglas.dayHours, [diaEdit]: { from, to } } },
+      { 'config/horaDia': indiceHmi(diaEdit), 'config/horaDesde': from, 'config/horaHasta': to },
+    )
   }
 
   const horasEdit = reglas.dayHours[diaEdit]
@@ -288,7 +320,7 @@ export function DatosAlmacenados({
           </button>
           <button
             type="button"
-            onClick={() => toast.info(reglas.autoDelete.enabled ? 'La regla quedo guardada en esta pagina. El HMI aun no recibe la orden de borrar.' : 'Activa el auto-borrado para poder aplicarlo.')}
+            onClick={() => onEnviar({ 'config/aplicarBorrado': true })}
             className="h-9 rounded-md border border-border px-3 text-xs font-medium text-foreground"
           >
             Aplicar reglas ahora
@@ -331,7 +363,10 @@ export function DatosAlmacenados({
                     type="button"
                     onClick={() => {
                       const recordDays = on ? reglas.recordDays.filter((item) => item !== dia.corto) : [...reglas.recordDays, dia.corto]
-                      ponerReglas({ ...reglas, recordDays }, on ? `Excluido de grabacion: ${dia.largo}` : `Se vuelve a grabar: ${dia.largo}`)
+                      ponerReglas(
+                        { ...reglas, recordDays },
+                        { 'config/grabarDia': indiceHmi(dia.corto), 'config/grabarOn': !on },
+                      )
                     }}
                     className={cn('h-8 rounded-md border text-xs font-medium', on ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground')}
                   >
@@ -359,22 +394,25 @@ export function DatosAlmacenados({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">Horario de {DIAS.find((dia) => dia.corto === diaEdit)?.largo}</p>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => ponerReglas({ ...reglas, dayHours: { ...reglas.dayHours, [diaEdit]: { from: Math.max(0, horasEdit.from - 1), to: horasEdit.to } } })} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
+              <button type="button" onClick={() => fijarHora(Math.max(0, horasEdit.from - 1), horasEdit.to)} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
               <span className="min-w-12 text-center text-sm text-foreground">{horaTxt(horasEdit.from)}</span>
-              <button type="button" onClick={() => ponerReglas({ ...reglas, dayHours: { ...reglas.dayHours, [diaEdit]: { from: Math.min(horasEdit.to, horasEdit.from + 1), to: horasEdit.to } } })} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
+              <button type="button" onClick={() => fijarHora(Math.min(horasEdit.to, horasEdit.from + 1), horasEdit.to)} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
             </div>
             <span className="text-xs text-muted-foreground">a</span>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => ponerReglas({ ...reglas, dayHours: { ...reglas.dayHours, [diaEdit]: { from: horasEdit.from, to: Math.max(horasEdit.from, horasEdit.to - 1) } } })} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
+              <button type="button" onClick={() => fijarHora(horasEdit.from, Math.max(horasEdit.from, horasEdit.to - 1))} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
               <span className="min-w-12 text-center text-sm text-foreground">{horaTxt(horasEdit.to)}</span>
-              <button type="button" onClick={() => ponerReglas({ ...reglas, dayHours: { ...reglas.dayHours, [diaEdit]: { from: horasEdit.from, to: Math.min(23, horasEdit.to + 1) } } })} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
+              <button type="button" onClick={() => fijarHora(horasEdit.from, Math.min(23, horasEdit.to + 1))} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
             </div>
           </div>
           <button
             type="button"
             onClick={() => {
               const dayHours = Object.fromEntries(DIAS.map((dia) => [dia.corto, { from: horasEdit.from, to: horasEdit.to }])) as Record<DiaClave, HorasDia>
-              ponerReglas({ ...reglas, dayHours }, `${horaTxt(horasEdit.from)}–${horaTxt(horasEdit.to)} aplicado a los 7 dias`)
+              ponerReglas(
+                { ...reglas, dayHours },
+                { 'config/horaTodosDesde': horasEdit.from, 'config/horaTodosHasta': horasEdit.to },
+              )
             }}
             className="h-9 rounded-md border border-border px-3 text-xs font-medium text-foreground"
           >
@@ -397,7 +435,7 @@ export function DatosAlmacenados({
               checked={reglas.autoDelete.enabled}
               onCheckedChange={(enabled) => ponerReglas(
                 { ...reglas, autoDelete: { ...reglas.autoDelete, enabled } },
-                enabled ? 'Auto-borrado activado' : 'Auto-borrado desactivado',
+                { 'config/autoBorrado': enabled, 'config/autoDias': reglas.autoDelete.afterDays },
               )}
               className="data-[state=checked]:bg-green-500"
             />
@@ -406,13 +444,25 @@ export function DatosAlmacenados({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">Borrar dias con mas de</p>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => ponerReglas({ ...reglas, autoDelete: { ...reglas.autoDelete, afterDays: Math.max(1, reglas.autoDelete.afterDays - 1) } })} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
+              <button type="button" onClick={() => {
+                const afterDays = Math.max(1, reglas.autoDelete.afterDays - 1)
+                ponerReglas(
+                  { ...reglas, autoDelete: { ...reglas.autoDelete, afterDays } },
+                  { 'config/autoBorrado': reglas.autoDelete.enabled, 'config/autoDias': afterDays },
+                )
+              }} className="h-8 w-8 rounded-md border border-border text-foreground">−</button>
               <span className="min-w-16 text-center text-sm text-foreground">{reglas.autoDelete.afterDays} dias</span>
-              <button type="button" onClick={() => ponerReglas({ ...reglas, autoDelete: { ...reglas.autoDelete, afterDays: Math.min(7, reglas.autoDelete.afterDays + 1) } })} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
+              <button type="button" onClick={() => {
+                const afterDays = Math.min(7, reglas.autoDelete.afterDays + 1)
+                ponerReglas(
+                  { ...reglas, autoDelete: { ...reglas.autoDelete, afterDays } },
+                  { 'config/autoBorrado': reglas.autoDelete.enabled, 'config/autoDias': afterDays },
+                )
+              }} className="h-8 w-8 rounded-md border border-border text-foreground">+</button>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Al pulsar Aplicar reglas ahora se guardan estas reglas. El equipo todavia no borra la semana desde la pagina: el HMI no publica esa orden.
+            Aplicar reglas ahora le pide al HMI que borre los dias que ya pasaron ese plazo. Hace falta el auto-borrado activo y el firmware nuevo cargado en el equipo.
           </p>
         </div>
       ) : null}
