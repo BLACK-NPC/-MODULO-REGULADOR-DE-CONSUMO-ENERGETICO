@@ -1,16 +1,15 @@
-// Service worker minimo para poder instalar la PWA.
-// No intercepta fetch: si lo hace y la red falla, Chrome muestra
-// "This page couldn't load" al abrir pantallas como Monitoreo.
-const CACHE_NAME = 'vientodux-v4'
-
+// Este archivo solo existe para reemplazar el worker viejo.
+// Ese worker interceptaba cada carga y Chrome mostraba
+// "This page couldn't load" al abrir Monitoreo.
+// Aqui no hay fetch: al activarse se borra solo.
 self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((claves) =>
-      Promise.all(claves.filter((clave) => clave !== CACHE_NAME).map((clave) => caches.delete(clave))),
-    ).then(() => self.clients.claim()),
+    caches.keys()
+      .then((claves) => Promise.all(claves.map((clave) => caches.delete(clave))))
+      .then(() => self.registration.unregister()),
   )
 })

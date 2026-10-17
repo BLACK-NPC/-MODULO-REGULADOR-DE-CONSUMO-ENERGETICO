@@ -58,24 +58,20 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
-              function hablarNav(){
-                if(window.__saludoNav||!window.speechSynthesis)return;
-                window.__saludoNav=1;
-                var u=new SpeechSynthesisUtterance("Hola señor. ¿Qué tal se siente el día de hoy? ¿Desea que le dé el resumen del día? O, ¿quiere saber algún dato en particular?");
-                u.lang="es-MX";
-                u.onstart=function(){window.__saludoNav=1};
-                u.onend=function(){window.__saludoFin=1};
-                u.onerror=function(){window.__saludoFin=1};
-                window.speechSynthesis.resume();
-                window.speechSynthesis.speak(u);
+              window.__jorgeTomado=true;
+              if("serviceWorker" in navigator && navigator.serviceWorker.controller && sessionStorage.getItem("sw-fuera")!=="1"){
+                window.__recargando=1;
               }
-              window.__jorgeListo=fetch("/api/voz",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:"Hola señor."})}).then(function(r){return r.ok?r.blob():null}).then(function(blob){
-                if(!blob){hablarNav();return null}
-                var a=new Audio(URL.createObjectURL(blob));
-                a.setAttribute("playsinline","");
-                window.__jorgeAudio=a;
-                return a.play().then(function(){window.__jorgeSono=1;return blob}).catch(function(){window.__jorgeSono=0;hablarNav();return blob});
-              }).catch(function(){hablarNav();return null});
+              window.__jorgeListo=fetch("/api/voz",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:"Hola señor."})}).then(function(r){return r.ok?r.blob():null}).catch(function(){return null});
+              if(!("serviceWorker" in navigator))return;
+              navigator.serviceWorker.getRegistrations().then(function(regs){
+                return Promise.all(regs.map(function(reg){return reg.unregister()}));
+              }).then(function(){
+                if(window.__recargando){
+                  sessionStorage.setItem("sw-fuera","1");
+                  location.reload();
+                }
+              }).catch(function(){});
             })();`,
           }}
         />

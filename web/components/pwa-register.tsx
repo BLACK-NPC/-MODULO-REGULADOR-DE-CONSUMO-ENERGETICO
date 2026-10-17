@@ -4,19 +4,10 @@ import { useEffect } from 'react'
 
 export function PwaRegister() {
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) {
-      return
-    }
-
-    const register = async () => {
-      try {
-        await navigator.serviceWorker.register('/sw.js?v=4')
-      } catch (error) {
-        console.warn('No se pudo registrar el service worker:', error)
-      }
-    }
-
-    register()
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(regs.map((reg) => reg.unregister())))
+      .catch(() => undefined)
   }, [])
 
   return null
