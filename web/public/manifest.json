@@ -1,6 +1,6 @@
 {
-  "name": "EcoPulse",
-  "short_name": "EcoPulse",
+  "name": "Vientodux",
+  "short_name": "Vientodux",
   "description": "Monitoreo y control del modulo regulador de consumo energetico",
   "start_url": "/",
   "scope": "/",

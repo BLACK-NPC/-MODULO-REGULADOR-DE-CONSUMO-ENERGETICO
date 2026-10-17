@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import { Fan, Activity, Settings, AlertTriangle, Cloud, Snowflake } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
@@ -32,13 +31,7 @@ export function Sidebar({ currentPage, onNavigate, wifiConnected, faultCount = 0
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0">
-              <Image
-                src="/icono-192.png"
-                alt={APP_NAME}
-                width={40}
-                height={40}
-                className="h-full w-full object-cover"
-              />
+              <img src="/vientodux-logo.jpg" alt="Vientodux" className="h-full w-full object-cover" />
             </div>
             <div>
               <h1 className="font-bold text-lg text-foreground">{APP_NAME}</h1>
