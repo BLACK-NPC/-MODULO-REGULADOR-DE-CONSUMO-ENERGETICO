@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HMI — ALERTAS</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="manual-nav" aria-label="Pantallas del HMI">
+    <a href="index.html">Indice</a>
+    <a href="home.html">HOME</a>
+    <a href="monitoreo.html">MONITOREO</a>
+    <a href="alertas.html" aria-current="page">ALERTAS</a>
+    <a href="configuraciones.html">CONFIGURACIONES</a>
+    <a href="wifi.html">WIFI</a>
+  </nav>
+  <p class="manual-note">ALERTAS en vivo: rejilla 2×3 — TEMPERATURA, HUMEDAD, POTENCIA, WIFI, MOVIMIENTO, FIREBASE. Estados: ENCENDIDO (#2EAF4A), APAGADO (#D83A3A), FALLA (#E68A00).</p>
+
+  <div class="hmi" aria-label="Pantalla ALERTAS 480x272">
+    <div class="nav-toggle">▶</div>
+    <header class="topbar">
+      <h1>ALERTAS</h1>
+      <span class="refresh">!</span>
+    </header>
+
+    <div style="position:absolute;left:14px;right:14px;top:58px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <!-- TEMPERATURA -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#ff8a4c22;color:#ff8a4c;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">T</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.03em">TEMPERATURA</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green)">ENCENDIDO</div>
+        </div>
+        <span class="dot dot-on"></span>
+      </article>
+
+      <!-- HUMEDAD -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#4cc9f022;color:#4cc9f0;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">H</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800">HUMEDAD</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green)">ENCENDIDO</div>
+        </div>
+        <span class="dot dot-on"></span>
+      </article>
+
+      <!-- POTENCIA -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#fb790022;color:#fb7900;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">P</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800">POTENCIA</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green)">ENCENDIDO</div>
+        </div>
+        <span class="dot dot-on"></span>
+      </article>
+
+      <!-- WIFI -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#2ee6a622;color:#2ee6a6;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">W</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800">WIFI</div>
+          <div style="font-size:13px;font-weight:700;color:var(--amber)">FALLA</div>
+        </div>
+        <span class="dot dot-fail"></span>
+      </article>
+
+      <!-- MOVIMIENTO -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#f472b622;color:#f472b6;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">M</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800">MOVIMIENTO</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green)">ENCENDIDO</div>
+        </div>
+        <span class="dot dot-on"></span>
+      </article>
+
+      <!-- FIREBASE -->
+      <article class="panel" style="position:relative;height:62px;padding:8px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:8px;background:#a78bfa22;color:#a78bfa;display:grid;place-items:center;font-size:12px;font-weight:800" aria-hidden="true">F</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:800">FIREBASE</div>
+          <div style="font-size:13px;font-weight:700;color:var(--red-dot)">APAGADO</div>
+        </div>
+        <span class="dot dot-off"></span>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

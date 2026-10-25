@@ -21,7 +21,8 @@ import type { AVCData, FaultRecord } from '@/hooks/use-avc-data'
 
 type Pane = 'medicion' | 'automatizacion' | 'conectividad' | 'sistema'
 
-const NAMES = ['Temperatura', 'Humedad', 'Potencia', 'WiFi', 'Presencia', 'Nube', 'Cerebro']
+/** Nombres como en la pantalla ALERTAS del HMI (runtime ENCENDIDO/APAGADO/FALLA). Cerebro es extra de la pagina. */
+const NAMES = ['Temperatura', 'Humedad', 'Potencia', 'WiFi', 'Movimiento', 'Firebase', 'Cerebro']
 const HINTS = [
   'Revisa el sensor DHT y el limite maximo.',
   'Revisa el sensor DHT y el humidificador.',
@@ -35,6 +36,13 @@ const GO = ['Medicion', 'Medicion', 'Medicion', 'Conectividad', 'Automatizacion'
 const PANES: Pane[] = ['medicion', 'medicion', 'medicion', 'conectividad', 'automatizacion', 'conectividad', 'sistema']
 const ICONS = [Thermometer, Droplets, Zap, Wifi, User, Cloud, Cpu]
 const ICONO = ['#ff8a4c', '#4cc9f0', '#ffd23f', '#2ee6a6', '#f472b6', '#a78bfa', '#7ddc1f']
+/** Colores de punto como en app_runtime.cpp alertStateColor */
+const HMI_LUZ = {
+  encendido: '#2EAF4A',
+  apagado: '#D83A3A',
+  falla: '#E68A00',
+  sin_dato: '#9aa39d',
+} as const
 
 type Nivel = 'ok' | 'aviso' | 'peligro' | 'sin_dato'
 
@@ -91,45 +99,48 @@ function duration(start: number, end: number) {
   return formatSeconds(until - start)
 }
 
+/** Misma semántica que refreshAlertScreen() del HMI: ENCENDIDO / APAGADO / FALLA. */
 function comportamiento(data: AVCData, signal: number, fresh: boolean, bad: Set<number>) {
   if (bad.has(signal)) {
-    return { nivel: 'peligro' as const, titulo: 'Falla', detalle: HINTS[signal] }
+    return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: HINTS[signal], hmi: HMI_LUZ.falla }
   }
   if (!fresh) {
-    return { nivel: 'sin_dato' as const, titulo: 'Sin lectura', detalle: 'No se puede confirmar' }
+    return { nivel: 'sin_dato' as const, titulo: 'SIN LECTURA', detalle: 'No se puede confirmar', hmi: HMI_LUZ.sin_dato }
   }
   if (signal === 0) {
-    if (!data.config.sensorTemperatura) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
-    if (data.temperatura < 0 || data.temperatura > 55) return { nivel: 'aviso' as const, titulo: 'Dato raro', detalle: `${data.temperatura} °C` }
-    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${data.temperatura} °C` }
+    if (!data.config.sensorTemperatura) return { nivel: 'aviso' as const, titulo: 'APAGADO', detalle: 'Sensor desactivado', hmi: HMI_LUZ.apagado }
+    if (data.temperatura < 0 || data.temperatura > 55) return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: `${data.temperatura} °C`, hmi: HMI_LUZ.falla }
+    return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: `${data.temperatura} °C`, hmi: HMI_LUZ.encendido }
   }
   if (signal === 1) {
-    if (!data.config.sensorHumedad) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
-    if (data.humedad < 0 || data.humedad > 100) return { nivel: 'peligro' as const, titulo: 'Dato imposible', detalle: `${Math.round(data.humedad)} %` }
-    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${Math.round(data.humedad)} %` }
+    if (!data.config.sensorHumedad) return { nivel: 'aviso' as const, titulo: 'APAGADO', detalle: 'Sensor desactivado', hmi: HMI_LUZ.apagado }
+    if (data.humedad < 0 || data.humedad > 100) return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: `${Math.round(data.humedad)} %`, hmi: HMI_LUZ.falla }
+    return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: `${Math.round(data.humedad)} %`, hmi: HMI_LUZ.encendido }
   }
   if (signal === 2) {
-    if (!data.config.sensorPotencia) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
-    if (data.potencia < 0) return { nivel: 'aviso' as const, titulo: 'Dato raro', detalle: `${data.potencia} W` }
-    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: `${data.potencia} W` }
+    if (!data.config.sensorPotencia) return { nivel: 'aviso' as const, titulo: 'APAGADO', detalle: 'Sensor desactivado', hmi: HMI_LUZ.apagado }
+    if (data.potencia < 0) return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: `${data.potencia} W`, hmi: HMI_LUZ.falla }
+    return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: `${data.potencia} W`, hmi: HMI_LUZ.encendido }
   }
   if (signal === 3) {
-    if (!data.conectividad.wifiRadio) return { nivel: 'aviso' as const, titulo: 'Radio apagada', detalle: 'El WiFi del equipo esta apagado' }
-    if (!data.wifi.conectado) return { nivel: 'peligro' as const, titulo: 'Sin enlace', detalle: 'No hay red' }
-    return { nivel: 'ok' as const, titulo: 'Enlazado', detalle: data.wifi.ssid || 'Con red' }
+    if (!data.conectividad.wifiRadio) return { nivel: 'aviso' as const, titulo: 'APAGADO', detalle: 'El WiFi del equipo esta apagado', hmi: HMI_LUZ.apagado }
+    if (!data.wifi.conectado) return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: 'No hay red', hmi: HMI_LUZ.falla }
+    return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: data.wifi.ssid || 'Con red', hmi: HMI_LUZ.encendido }
   }
   if (signal === 4) {
-    if (!data.config.sensorMovimiento) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Sensor desactivado' }
-    return { nivel: 'ok' as const, titulo: 'Funcionando', detalle: data.movimiento ? 'Hay presencia' : 'Sin presencia ahora' }
+    // En el HMI el movimiento no usa el switch de enable para el estado de alerta.
+    return data.movimiento
+      ? { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: 'Hay presencia', hmi: HMI_LUZ.encendido }
+      : { nivel: 'peligro' as const, titulo: 'FALLA', detalle: 'Sin presencia ahora', hmi: HMI_LUZ.falla }
   }
   if (signal === 5) {
     const modo = data.conectividad.firebaseModo
-    if (modo === 0) return { nivel: 'aviso' as const, titulo: 'Apagado', detalle: 'Firebase no esta activo' }
-    if (modo === 1) return { nivel: 'aviso' as const, titulo: 'Solo lee', detalle: 'No esta enviando el estado' }
-    if (modo === 2) return { nivel: 'ok' as const, titulo: 'Enviando', detalle: 'Publica, no recibe ordenes' }
-    return { nivel: 'ok' as const, titulo: 'Publicando', detalle: 'Lectura y envio activos' }
+    if (modo === 0) return { nivel: 'aviso' as const, titulo: 'APAGADO', detalle: 'Firebase no esta activo', hmi: HMI_LUZ.apagado }
+    if (modo === 1) return { nivel: 'peligro' as const, titulo: 'FALLA', detalle: 'No esta enviando el estado', hmi: HMI_LUZ.falla }
+    if (modo === 2) return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: 'Publica, no recibe ordenes', hmi: HMI_LUZ.encendido }
+    return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: 'Lectura y envio activos', hmi: HMI_LUZ.encendido }
   }
-  return { nivel: 'ok' as const, titulo: 'En linea', detalle: 'El cerebro responde' }
+  return { nivel: 'ok' as const, titulo: 'ENCENDIDO', detalle: 'El cerebro responde', hmi: HMI_LUZ.encendido }
 }
 
 export function AlertasVistas({
@@ -186,7 +197,7 @@ export function AlertasVistas({
             title: `${avisos} ${avisos === 1 ? 'componente no esta al 100%' : 'componentes no estan al 100%'}`,
             text: 'Siguen presentes, pero hay uno apagado o con una lectura rara.',
           }
-        : { tone: 'ok' as const, title: 'Todo en orden', text: 'Los 7 componentes funcionan con normalidad.' }
+        : { tone: 'ok' as const, title: 'Todo en orden', text: 'Las senales del HMI (temperatura, humedad, potencia, WiFi, movimiento, Firebase) estan en ENCENDIDO.' }
 
   const shown = filter === 1 ? open : filter === 2 ? done : records
   const totalSec = records.reduce(
@@ -341,11 +352,11 @@ export function AlertasVistas({
               {NAMES.map((name, signal) => {
                 const Icon = ICONS[signal]
                 const pieza = piezas[signal]
-                const luz = LUZ[pieza.nivel]
+                const punto = pieza.hmi
                 const icono = ICONO[signal]
                 return (
                   <div key={name} className="relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-white/10 bg-card p-3.5">
-                    <Franja color={luz.linea} />
+                    <Franja color={punto} />
                     <div className="flex items-center justify-between">
                       <span
                         className="flex h-10 w-10 items-center justify-center rounded-[14px] border"
@@ -353,10 +364,10 @@ export function AlertasVistas({
                       >
                         <Icon className="w-5 h-5" />
                       </span>
-                      <span className="w-2 h-2 rounded-full" style={{ background: luz.texto }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: punto }} />
                     </div>
-                    <b className="text-xl font-semibold" style={{ color: luz.texto }}>{pieza.titulo}</b>
-                    <span className="text-xs text-muted-foreground">{name}</span>
+                    <b className="text-lg font-semibold tracking-wide" style={{ color: punto }}>{pieza.titulo}</b>
+                    <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{name}</span>
                     <span className="text-xs text-muted-foreground">{pieza.detalle}</span>
                   </div>
                 )

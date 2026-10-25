@@ -1,0 +1,213 @@
+/* Manual visual del HMI — resolución real 480×272 */
+:root {
+  --bg: #f3f4f6;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --muted: #5a6572;
+  --border: #c9ced6;
+  --green: #2eaf4a;
+  --green-deep: #1e8e3e;
+  --red: #e24a3b;
+  --red-dot: #d83a3a;
+  --amber: #e68a00;
+  --blue: #2d8cff;
+  --blue-nav: #2196f3;
+  --pot: #fb7900;
+  --temp: #ff3b30;
+  --hum: #1d73ff;
+  --chart-hum: #0715f5;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #1a1d21;
+  color: var(--text);
+  font-family: "Montserrat", "Segoe UI", sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.manual-nav {
+  width: min(960px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.manual-nav a {
+  color: #e8eaed;
+  text-decoration: none;
+  border: 1px solid #3a4048;
+  background: #252a31;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.manual-nav a[aria-current="page"] {
+  background: var(--blue-nav);
+  border-color: var(--blue-nav);
+}
+
+.manual-note {
+  width: min(960px, 100%);
+  color: #9aa3ad;
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.hmi {
+  width: 480px;
+  height: 272px;
+  background: var(--bg);
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.topbar {
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: 0;
+  height: 51px;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px 0 52px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.nav-toggle {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--blue-nav);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 3;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.topbar .clock {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.topbar .refresh {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eef2f7;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+
+.panel {
+  position: absolute;
+  background: var(--panel);
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.btn {
+  border: 0;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: default;
+}
+
+.btn-start { background: var(--green); color: #06210f; }
+.btn-stop { background: var(--red); color: #fff; }
+.btn-ghost { background: #eef2f7; color: var(--text); border: 1px solid var(--border); }
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-on { background: var(--green); }
+.dot-off { background: var(--red-dot); }
+.dot-fail { background: var(--amber); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.switch {
+  width: 42px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  position: relative;
+}
+.switch.on { background: var(--green); }
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s ease;
+}
+.switch.on::after { left: 22px; }
+
+@media (max-width: 520px) {
+  .hmi {
+    transform: scale(0.82);
+    transform-origin: top center;
+    margin-bottom: -40px;
+  }
+}

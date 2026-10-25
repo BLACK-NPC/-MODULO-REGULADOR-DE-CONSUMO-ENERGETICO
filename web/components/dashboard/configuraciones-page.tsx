@@ -195,7 +195,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
   const [servicioVista, setServicioVista] = useState<
     'panel' | 'pendientes' | 'vencidas' | 'mantenimiento' | 'diagnostico' | 'cumplimiento' | 'resumen' | 'verificacion'
   >('panel')
-  const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true })
+  const [openGroups, setOpenGroups] = useState({ hum: true, temp: true, pow: true, mov: true })
   const [spUnlocked, setSpUnlocked] = useState(false)
   const [pinOpen, setPinOpen] = useState(false)
   const [pinDraft, setPinDraft] = useState('')
@@ -278,7 +278,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
     })
   }
 
-  function toggleGroup(key: 'hum' | 'temp' | 'pow') {
+  function toggleGroup(key: 'hum' | 'temp' | 'pow' | 'mov') {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
@@ -521,6 +521,38 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
               </div>
             ) : null}
           </div>
+
+          {/* Cuarta fila del HMI CONFIGURACIONES: MOVIMIENTO (sensor + guardar) */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-secondary/40">
+              <Radar className="w-5 h-5 text-pink-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">CONTROL DE MOVIMIENTO</p>
+                <p className="text-xs text-muted-foreground">Igual que en el HMI: habilita el sensor y el registro.</p>
+              </div>
+              <MedicionSwitch
+                checked={data.config.sensorMovimiento}
+                onCheckedChange={(checked) => send('config/sensorMovimiento', checked)}
+              />
+              <button type="button" onClick={() => toggleGroup('mov')} aria-label="Abrir movimiento">
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openGroups.mov ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {openGroups.mov ? (
+              <div className="border-t border-border px-4 py-3 flex items-center gap-3">
+                <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Registro de movimiento</p>
+                  <p className="text-xs text-muted-foreground">GUARDAR DATOS DE MOVIMIENTO</p>
+                </div>
+                <MedicionSwitch
+                  checked={data.config.guardarMovimiento}
+                  disabled={!data.config.sensorMovimiento}
+                  onCheckedChange={(checked) => send('config/guardarMovimiento', checked)}
+                />
+              </div>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
       </div>
@@ -533,7 +565,7 @@ export function ConfiguracionesPage({ data, onUpdate, isDemo = false, lastHeartb
           <Gauge className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="font-medium text-foreground">MEDICION</p>
-            <p className="text-xs text-muted-foreground">Humedad, temperatura, potencia</p>
+            <p className="text-xs text-muted-foreground">Humedad, temperatura, potencia, movimiento</p>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
         </button>

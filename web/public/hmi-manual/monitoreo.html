@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HMI — MONITOREO</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="manual-nav" aria-label="Pantallas del HMI">
+    <a href="index.html">Indice</a>
+    <a href="home.html">HOME</a>
+    <a href="monitoreo.html" aria-current="page">MONITOREO</a>
+    <a href="alertas.html">ALERTAS</a>
+    <a href="configuraciones.html">CONFIGURACIONES</a>
+    <a href="wifi.html">WIFI</a>
+  </nav>
+  <p class="manual-note">MONITOREO en vivo: chips Lun–Dom, gráfica 24 puntos (Temp #FF3B30, Hum #0715F5, Pot #FB7900), tarjetas laterales y Borrar Datos.</p>
+
+  <div class="hmi" aria-label="Pantalla MONITOREO 480x272">
+    <div class="nav-toggle">▶</div>
+    <header class="topbar">
+      <h1>MONITOREO</h1>
+      <span class="refresh">R</span>
+    </header>
+
+    <!-- Día chips (2 columnas remapeadas por runtime) -->
+    <div style="position:absolute;left:12px;top:58px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:88px">
+      <span class="chip active" style="height:22px">Lun</span>
+      <span class="chip" style="height:22px">Mar</span>
+      <span class="chip" style="height:22px">Mie</span>
+      <span class="chip" style="height:22px">Jue</span>
+      <span class="chip" style="height:22px">Vie</span>
+      <span class="chip" style="height:22px">Sab</span>
+      <span class="chip" style="height:22px;grid-column:1 / -1">Dom</span>
+    </div>
+
+    <!-- Borrar -->
+    <button class="btn btn-ghost" style="position:absolute;left:12px;top:210px;width:88px;height:28px;font-size:10px;display:flex;align-items:center;justify-content:center;gap:4px">
+       Borrar Datos
+    </button>
+
+    <!-- Tarjetas live -->
+    <div style="position:absolute;left:8px;bottom:8px;display:flex;flex-direction:column;gap:2px;font-size:10px;font-weight:700">
+      <span style="color:var(--pot)">Pot: 42 %</span>
+      <span style="color:var(--temp)">Temp: 25.0 C</span>
+      <span style="color:var(--hum)">Hum: 27.0 %</span>
+    </div>
+
+    <!-- Chart panel -->
+    <section class="panel" style="left:110px;top:58px;width:358px;height:168px;padding:8px">
+      <svg viewBox="0 0 340 140" width="100%" height="140" aria-hidden="true">
+        <polyline fill="none" stroke="#ff3b30" stroke-width="2" points="10,90 40,70 70,75 100,55 130,60 160,40 190,50 220,35 250,45 280,30 310,40 330,28" />
+        <polyline fill="none" stroke="#0715f5" stroke-width="2" points="10,100 40,95 70,88 100,92 130,85 160,80 190,78 220,70 250,72 280,65 310,68 330,60" />
+        <polyline fill="none" stroke="#fb7900" stroke-width="2" points="10,110 40,108 70,100 100,95 130,98 160,90 190,88 220,82 250,85 280,78 310,80 330,74" />
+      </svg>
+    </section>
+
+    <!-- Legend -->
+    <div style="position:absolute;left:120px;bottom:12px;display:flex;gap:14px;font-size:10px;font-weight:700;align-items:center">
+      <span><i class="legend-dot" style="background:var(--pot)"></i> POTENCIA</span>
+      <span><i class="legend-dot" style="background:#ff0000"></i> TEMPERATURA</span>
+      <span><i class="legend-dot" style="background:var(--chart-hum)"></i> HUMEDAD</span>
+    </div>
+  </div>
+</body>
+</html>

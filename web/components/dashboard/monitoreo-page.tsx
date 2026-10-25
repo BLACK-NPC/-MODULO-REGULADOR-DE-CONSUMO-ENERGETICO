@@ -830,7 +830,7 @@ export function MonitoreoPage({ data }: MonitoreoPageProps) {
             <span>QUE HIZO EL SISTEMA</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Aqui veras la tabla de decisiones del sistema: presencia, ventilador, perfiles y horario, mantenimiento, alertas y sensores, fallo de motor si no hay potencia. Esta lectura no trae las filas, asi que no se inventan decisiones.
+            El HMI de Monitoreo muestra la grafica semanal y Borrar Datos; no publica esta bitacora de decisiones. Cuando el equipo la envie, apareceran las filas aqui. No se inventan.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" onClick={() => setCapa('ahora')}>Ahora</Button>

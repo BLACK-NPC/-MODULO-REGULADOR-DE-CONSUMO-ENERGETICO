@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manual HMI — pantallas</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="manual-nav" aria-label="Pantallas del HMI">
+    <a href="index.html" aria-current="page">Indice</a>
+    <a href="home.html">HOME</a>
+    <a href="monitoreo.html">MONITOREO</a>
+    <a href="alertas.html">ALERTAS</a>
+    <a href="configuraciones.html">CONFIGURACIONES</a>
+    <a href="wifi.html">WIFI</a>
+  </nav>
+  <p class="manual-note">
+    Referencia visual del HMI actual (480×272). Fuente: SquareLine + runtime
+    (<code>app_runtime.cpp</code>, <code>ui_nav.c</code>, <code>ui_app_logic.cpp</code>).
+    Cada pantalla muestra el diseño en vivo, no el esqueleto estático de SquareLine.
+  </p>
+  <main style="width:min(960px,100%);display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+    <a href="home.html" style="color:#e8eaed;text-decoration:none;background:#252a31;border:1px solid #3a4048;border-radius:12px;padding:1rem">
+      <strong>HOME</strong>
+      <p style="margin:.4rem 0 0;color:#9aa3ad;font-size:.85rem">Temp, humedad, operación (consumo / velocidad / PIR), START / STOP, modo.</p>
+    </a>
+    <a href="monitoreo.html" style="color:#e8eaed;text-decoration:none;background:#252a31;border:1px solid #3a4048;border-radius:12px;padding:1rem">
+      <strong>MONITOREO</strong>
+      <p style="margin:.4rem 0 0;color:#9aa3ad;font-size:.85rem">Días Lun–Dom, gráfica, tarjetas Pot/Temp/Hum, Borrar Datos.</p>
+    </a>
+    <a href="alertas.html" style="color:#e8eaed;text-decoration:none;background:#252a31;border:1px solid #3a4048;border-radius:12px;padding:1rem">
+      <strong>ALERTAS</strong>
+      <p style="margin:.4rem 0 0;color:#9aa3ad;font-size:.85rem">6 tarjetas con ENCENDIDO / APAGADO / FALLA.</p>
+    </a>
+    <a href="configuraciones.html" style="color:#e8eaed;text-decoration:none;background:#252a31;border:1px solid #3a4048;border-radius:12px;padding:1rem">
+      <strong>CONFIGURACIONES</strong>
+      <p style="margin:.4rem 0 0;color:#9aa3ad;font-size:.85rem">4 filas: habilitar sensor + guardar datos (humedad, temp, potencia, movimiento).</p>
+    </a>
+    <a href="wifi.html" style="color:#e8eaed;text-decoration:none;background:#252a31;border:1px solid #3a4048;border-radius:12px;padding:1rem">
+      <strong>WIFI</strong>
+      <p style="margin:.4rem 0 0;color:#9aa3ad;font-size:.85rem">Estado, red actual, IP, selector de red, clave y conectar.</p>
+    </a>
+  </main>
+</body>
+</html>
