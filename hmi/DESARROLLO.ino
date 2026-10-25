@@ -43,82 +43,42 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
   static bool touch_is_pressed = false;
   static uint32_t last_valid_touch_ms = 0;
-  static uint8_t noisy_touch_count = 0;
   static float filtered_x = 0.0f;
   static float filtered_y = 0.0f;
 
-  constexpr uint8_t MAX_NOISY_TOUCHES = 4;
-  constexpr int16_t TOUCH_NOISE_JUMP_PX = 120;
-  constexpr int16_t TOUCH_IDLE_JITTER_PX = 3;
-  constexpr int16_t TOUCH_EDGE_MARGIN_PX = 1;
-  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 80;
-  constexpr float TOUCH_FILTER_ALPHA = 0.45f;
-
-  auto reset_touch_state = [&]()
-  {
-    touch_is_pressed = false;
-    last_valid_touch_ms = 0;
-    noisy_touch_count = 0;
-  };
+  // Filtro liviano: el salto de 120 px + 4 muestras descartadas
+  // congelaba el punto y hacía sentir el tactil "muerto" al arrastrar.
+  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 40;
+  constexpr float TOUCH_FILTER_ALPHA = 0.65f;
 
   uint32_t now = millis();
-  bool has_touch_sample = touch_has_signal() && touch_touched();
 
-  if (has_touch_sample)
+  // Siempre consultar el GT911 por I2C (touch_has_signal ya no bloquea).
+  if (touch_touched())
   {
-    int16_t current_x = constrain(touch_last_x, TOUCH_EDGE_MARGIN_PX,
-                                  static_cast<int16_t>(screenWidth - 1 - TOUCH_EDGE_MARGIN_PX));
-    int16_t current_y = constrain(touch_last_y, TOUCH_EDGE_MARGIN_PX,
-                                  static_cast<int16_t>(screenHeight - 1 - TOUCH_EDGE_MARGIN_PX));
+    const float sample_x = static_cast<float>(constrain(touch_last_x, 0, static_cast<int16_t>(screenWidth - 1)));
+    const float sample_y = static_cast<float>(constrain(touch_last_y, 0, static_cast<int16_t>(screenHeight - 1)));
 
     if (!touch_is_pressed)
     {
+      filtered_x = sample_x;
+      filtered_y = sample_y;
       touch_is_pressed = true;
-      noisy_touch_count = 0;
-      filtered_x = static_cast<float>(current_x);
-      filtered_y = static_cast<float>(current_y);
     }
     else
     {
-      int16_t delta_x = static_cast<int16_t>(current_x - filtered_x);
-      int16_t delta_y = static_cast<int16_t>(current_y - filtered_y);
-
-      if (abs(delta_x) > TOUCH_NOISE_JUMP_PX || abs(delta_y) > TOUCH_NOISE_JUMP_PX)
-      {
-        if (noisy_touch_count < MAX_NOISY_TOUCHES)
-        {
-          ++noisy_touch_count;
-        }
-
-        if (noisy_touch_count >= MAX_NOISY_TOUCHES)
-        {
-          filtered_x = static_cast<float>(current_x);
-          filtered_y = static_cast<float>(current_y);
-          noisy_touch_count = 0;
-        }
-      }
-      else if (abs(delta_x) >= TOUCH_IDLE_JITTER_PX || abs(delta_y) >= TOUCH_IDLE_JITTER_PX)
-      {
-        noisy_touch_count = 0;
-        filtered_x = (TOUCH_FILTER_ALPHA * current_x) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_x);
-        filtered_y = (TOUCH_FILTER_ALPHA * current_y) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_y);
-      }
-      else
-      {
-        noisy_touch_count = 0;
-      }
+      filtered_x = (TOUCH_FILTER_ALPHA * sample_x) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_x);
+      filtered_y = (TOUCH_FILTER_ALPHA * sample_y) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_y);
     }
 
-    if (touch_is_pressed)
-    {
-      last_valid_touch_ms = now;
-      data->state = LV_INDEV_STATE_PR;
-      data->point.x = static_cast<lv_coord_t>(filtered_x + 0.5f);
-      data->point.y = static_cast<lv_coord_t>(filtered_y + 0.5f);
-      return;
-    }
+    last_valid_touch_ms = now;
+    data->state = LV_INDEV_STATE_PR;
+    data->point.x = static_cast<lv_coord_t>(filtered_x + 0.5f);
+    data->point.y = static_cast<lv_coord_t>(filtered_y + 0.5f);
+    return;
   }
 
+  // Una holgura corta evita cortes de clic por lecturas I2C fallidas.
   if (touch_is_pressed && (now - last_valid_touch_ms) <= TOUCH_RELEASE_GRACE_MS)
   {
     data->state = LV_INDEV_STATE_PR;
@@ -127,7 +87,8 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     return;
   }
 
-  reset_touch_state();
+  touch_is_pressed = false;
+  last_valid_touch_ms = 0;
   data->state = LV_INDEV_STATE_REL;
 }
 

@@ -68,16 +68,17 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
     }
   }
 
+#if (TOUCH_INT > 0)
+  // INT como entrada antes del reset; no lo usamos como candado de lectura.
+  pinMode(TOUCH_INT, INPUT_PULLUP);
+#endif
+
 #if (TOUCH_RES > 0)
   pinMode(TOUCH_RES, OUTPUT);
   digitalWrite(TOUCH_RES, 0);
-  delay(200);
+  delay(20);
   digitalWrite(TOUCH_RES, 1);
-  delay(200);
-#endif
-
-#if (TOUCH_INT > 0)
-  pinMode(TOUCH_INT, INPUT_PULLUP);
+  delay(100);
 #endif
 
   Wire.begin(TOUCH_SDA, TOUCH_SCL);
@@ -87,17 +88,10 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
 
 bool touch_has_signal()
 {
-  constexpr uint32_t TOUCH_ACTIVITY_HOLD_MS = 60;
-
-#if (TOUCH_INT > 0)
-  if (digitalRead(TOUCH_INT) == LOW)
-  {
-    return true;
-  }
-#endif
-
-  return touch_last_activity_ms != 0 &&
-         (millis() - touch_last_activity_ms) <= TOUCH_ACTIVITY_HOLD_MS;
+  // El GT911 se consulta por I2C. No dependemos del INT:
+  // en varias placas el INT no baja (o solo pulsa) y si se usa como
+  // candado, touch_touched() nunca se llama y el tactil queda muerto.
+  return true;
 }
 
 void translate_touch_raw()
