@@ -88,9 +88,9 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
 
 bool touch_has_signal()
 {
-  // El GT911 se consulta por I2C. No dependemos del INT:
-  // en varias placas el INT no baja (o solo pulsa) y si se usa como
-  // candado, touch_touched() nunca se llama y el tactil queda muerto.
+  // El filtrado anti-fantasma vive en my_touchpad_read(), no aquí.
+  // Aquí solo indicamos que se puede consultar el GT911 por I2C:
+  // si se exige INT en LOW, en varias placas nunca se llega a leer el tactil.
   return true;
 }
 
