@@ -38,6 +38,12 @@ Archivo principal:
 hmi/DESARROLLO.ino
 ```
 
+Funcionamiento actual y prompt de rediseño (proyecto de grado):
+
+```text
+hmi/FUNCIONAMIENTO.md
+```
+
 Resolucion de pantalla:
 
 ```text
