@@ -685,8 +685,9 @@ void buildMotorInfoPanel()
     lv_obj_set_y(ui_Label11, 74);
     lv_obj_update_layout(ui_HOME);
 
-    motorConsumptionTitle = createCenteredHomeLabel("Consumo", 154, -42, &lv_font_montserrat_12);
-    motorConsumptionValue = createCenteredHomeLabel("-- W", 154, -22, &lv_font_montserrat_16);
+    // La lectura del CT se normaliza a 0-100 % (no watts calibrados).
+    motorConsumptionTitle = createCenteredHomeLabel("Potencia", 154, -42, &lv_font_montserrat_12);
+    motorConsumptionValue = createCenteredHomeLabel("-- %", 154, -22, &lv_font_montserrat_16);
     motorSeparator = createCenteredHomeLabel("_______", 154, -5, &lv_font_montserrat_12);
     motorSpeedTitle = createCenteredHomeLabel("Velocidad", 154, 13, &lv_font_montserrat_12);
     motorSpeedValue = createCenteredHomeLabel("0 %", 154, 34, &lv_font_montserrat_16);
@@ -917,11 +918,11 @@ void refreshMotorControl()
     {
         if (app_runtime_has_power())
         {
-            snprintf(buffer, sizeof(buffer), "%d W", app_runtime_get_power_percent());
+            snprintf(buffer, sizeof(buffer), "%d %%", app_runtime_get_power_percent());
         }
         else
         {
-            snprintf(buffer, sizeof(buffer), "-- W");
+            snprintf(buffer, sizeof(buffer), "-- %%");
         }
         setLabelTextIfChanged(motorConsumptionValue, buffer);
     }
@@ -1148,6 +1149,11 @@ AlertState sensorAlertState(bool enabled, const StatusSignal &signal, uint32_t n
 
 AlertState motionAlertState(uint32_t now)
 {
+    if (!sensorEnabled[APP_SENSOR_MOTION])
+    {
+        return ALERT_STATE_OFF;
+    }
+
     return isActive(movementSignal, now) ? ALERT_STATE_ON : ALERT_STATE_FAIL;
 }
 
@@ -1716,11 +1722,12 @@ void applyRemoteFirebaseCommands(FirebaseJson &commands)
     int setpointValue = 0;
     if (readJsonInt(commands, "setpoint", setpointValue))
     {
-        int currentSetpoint = ui_input_overlay_get_setpoint();
-        int clampedSetpoint = constrainSetpoint(static_cast<float>(setpointValue));
+        // ui_input_overlay_set_setpoint ya limita a 18-35 C.
+        const int currentSetpoint = ui_input_overlay_get_setpoint();
+        ui_input_overlay_set_setpoint(setpointValue);
+        const int clampedSetpoint = ui_input_overlay_get_setpoint();
         if (currentSetpoint != clampedSetpoint)
         {
-            ui_input_overlay_set_setpoint(clampedSetpoint);
             refreshHomeScreen();
         }
     }
@@ -2164,8 +2171,14 @@ void app_runtime_init()
 
     wifiScanRequested = true;
     buildMotorInfoPanel();
+    if (ui_Label7 != nullptr)
+    {
+        lv_label_set_text(ui_Label7, "START");
+    }
     lv_dropdown_set_options(ui_Dropdown1, "AUTOMATICO\nMANUAL");
     lv_dropdown_set_selected(ui_Dropdown1, 0);
+    // Quita el stub SquareLine (dropdown_navegacion) para que solo mande el modo motor.
+    lv_obj_remove_event_cb(ui_Dropdown1, ui_event_Dropdown1);
     lv_obj_add_event_cb(ui_Button2, motorStartEvent, LV_EVENT_ALL, nullptr);
     lv_obj_add_event_cb(ui_Button1, motorStopEvent, LV_EVENT_ALL, nullptr);
     lv_obj_add_event_cb(ui_Dropdown1, motorModeChangedEvent, LV_EVENT_ALL, nullptr);
@@ -2246,16 +2259,18 @@ bool app_runtime_is_logging_enabled(AppSensorChannel channel)
 
 lv_obj_t *loggingSwitchForChannel(AppSensorChannel channel)
 {
+    // Debe apuntar a los switches de GUARDAR (1-4), no a los maestros (5-8).
+    // Ver configureConfigBindings() en ui_app_logic.cpp.
     switch (channel)
     {
     case APP_SENSOR_HUMIDITY:
-        return ui_Switch5;
+        return ui_Switch1;
     case APP_SENSOR_TEMPERATURE:
-        return ui_Switch6;
+        return ui_Switch2;
     case APP_SENSOR_POWER:
-        return ui_Switch7;
+        return ui_Switch3;
     case APP_SENSOR_MOTION:
-        return ui_Switch8;
+        return ui_Switch4;
     default:
         return nullptr;
     }

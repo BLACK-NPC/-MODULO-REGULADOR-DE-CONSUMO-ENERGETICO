@@ -7,5 +7,7 @@
 
 void dropdown_navegacion(lv_event_t * e)
 {
-	// Your code here
+    // Stub SquareLine: el modo AUTOMATICO/MANUAL lo maneja motorModeChangedEvent
+    // en app_runtime.cpp. Este callback se desregistra en app_runtime_init().
+    (void)e;
 }
