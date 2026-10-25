@@ -9,7 +9,7 @@ import type { AVCData, FaultRecord } from '@/hooks/use-avc-data'
 
 type Pane = 'medicion' | 'automatizacion' | 'conectividad' | 'sistema'
 
-const NAMES = ['Temperatura', 'Humedad', 'Potencia', 'WiFi', 'Presencia', 'Nube', 'Cerebro']
+const NAMES = ['Temperatura', 'Humedad', 'Potencia', 'WiFi', 'Movimiento', 'Firebase', 'Cerebro']
 const HINTS = [
   'Revisa el sensor DHT y el limite maximo.',
   'Revisa el sensor DHT y el humidificador.',
@@ -57,13 +57,13 @@ function liveValue(data: AVCData, signal: number, fresh: boolean) {
   if (!fresh) {
     return '--'
   }
-  if (signal === 0) return data.config.sensorTemperatura ? `${data.temperatura} C` : 'Apagado'
-  if (signal === 1) return data.config.sensorHumedad ? `${data.humedad} %` : 'Apagado'
-  if (signal === 2) return data.config.sensorPotencia ? `${data.potencia} W` : 'Apagado'
-  if (signal === 3) return data.wifi.conectado ? (data.wifi.ssid || 'Enlace') : 'Sin enlace'
-  if (signal === 4) return data.config.sensorMovimiento ? (data.movimiento ? 'Si' : 'No') : 'Apagado'
-  if (signal === 5) return 'Publicando'
-  return '--'
+  if (signal === 0) return data.config.sensorTemperatura ? 'ENCENDIDO' : 'APAGADO'
+  if (signal === 1) return data.config.sensorHumedad ? 'ENCENDIDO' : 'APAGADO'
+  if (signal === 2) return data.config.sensorPotencia ? 'ENCENDIDO' : 'APAGADO'
+  if (signal === 3) return !data.conectividad.wifiRadio ? 'APAGADO' : data.wifi.conectado ? 'ENCENDIDO' : 'FALLA'
+  if (signal === 4) return data.movimiento ? 'ENCENDIDO' : 'FALLA'
+  if (signal === 5) return data.conectividad.firebaseModo === 0 ? 'APAGADO' : 'ENCENDIDO'
+  return 'ENCENDIDO'
 }
 
 export function AlertasPage({ data, isDemo, lastHeartbeatAt, onGo }: AlertasPageProps) {
@@ -163,12 +163,16 @@ export function AlertasPage({ data, isDemo, lastHeartbeatAt, onGo }: AlertasPage
 
 function OkRow({ signal, value }: { signal: number; value: string }) {
   const Icon = ICONS[signal]
+  const color = value === 'ENCENDIDO' ? '#2EAF4A' : value === 'APAGADO' ? '#D83A3A' : value === 'FALLA' ? '#E68A00' : undefined
   return (
     <div className="rounded-md border border-border bg-card px-3 py-2 flex items-center gap-3">
       <Icon className="w-4 h-4 text-foreground" />
       <p className="text-sm text-foreground flex-1">{NAMES[signal]}</p>
-      <p className="text-sm text-foreground">{value}</p>
-      <span className={cn('w-2.5 h-2.5 rounded-full', value === '--' ? 'bg-muted-foreground' : 'bg-green-500')} />
+      <p className="text-sm font-bold tracking-wide" style={color ? { color } : undefined}>{value}</p>
+      <span
+        className="w-2.5 h-2.5 rounded-full"
+        style={{ background: color ?? (value === '--' ? undefined : '#2EAF4A') }}
+      />
     </div>
   )
 }

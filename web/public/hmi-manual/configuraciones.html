@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HMI — CONFIGURACIONES</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="manual-nav" aria-label="Pantallas del HMI">
+    <a href="index.html">Indice</a>
+    <a href="home.html">HOME</a>
+    <a href="monitoreo.html">MONITOREO</a>
+    <a href="alertas.html">ALERTAS</a>
+    <a href="configuraciones.html" aria-current="page">CONFIGURACIONES</a>
+    <a href="wifi.html">WIFI</a>
+  </nav>
+  <p class="manual-note">CONFIGURACIONES en vivo: 4 filas con interruptor de guardado (izquierda) e interruptor maestro del sensor (derecha). Maestro OFF fuerza guardado OFF.</p>
+
+  <div class="hmi" aria-label="Pantalla CONFIGURACIONES 480x272">
+    <div class="nav-toggle">▶</div>
+    <header class="topbar">
+      <h1>CONFIGURACIONES</h1>
+      <span class="refresh">*</span>
+    </header>
+
+    <div style="position:absolute;left:18px;right:18px;top:58px;display:flex;flex-direction:column;gap:6px">
+      <article class="panel" style="position:relative;height:48px;padding:0 12px;display:grid;grid-template-columns:28px 1fr 48px 48px;align-items:center;gap:8px">
+        <span aria-hidden="true">H</span>
+        <span style="font-size:11px;font-weight:800">GUARDAR DATOS DE HUMEDAD</span>
+        <span class="switch on" title="Guardar"></span>
+        <span class="switch on" title="Sensor"></span>
+      </article>
+      <article class="panel" style="position:relative;height:48px;padding:0 12px;display:grid;grid-template-columns:28px 1fr 48px 48px;align-items:center;gap:8px">
+        <span aria-hidden="true">T</span>
+        <span style="font-size:11px;font-weight:800">GUARDAR DATOS DE TEMPERATURA</span>
+        <span class="switch on" title="Guardar"></span>
+        <span class="switch on" title="Sensor"></span>
+      </article>
+      <article class="panel" style="position:relative;height:48px;padding:0 12px;display:grid;grid-template-columns:28px 1fr 48px 48px;align-items:center;gap:8px">
+        <span aria-hidden="true">P</span>
+        <span style="font-size:11px;font-weight:800">GUARDAR DATOS DE POTENCIA</span>
+        <span class="switch" title="Guardar"></span>
+        <span class="switch on" title="Sensor"></span>
+      </article>
+      <article class="panel" style="position:relative;height:48px;padding:0 12px;display:grid;grid-template-columns:28px 1fr 48px 48px;align-items:center;gap:8px">
+        <span aria-hidden="true">M</span>
+        <span style="font-size:11px;font-weight:800">GUARDAR DATOS DE MOVIMIENTO</span>
+        <span class="switch" title="Guardar" style="opacity:.4"></span>
+        <span class="switch" title="Sensor"></span>
+      </article>
+    </div>
+
+    <div style="position:absolute;right:28px;bottom:8px;font-size:9px;color:var(--muted)">
+      Izq: guardar · Der: sensor
+    </div>
+  </div>
+</body>
+</html>

@@ -211,16 +211,16 @@ export function HomePage({
             ) : null}
           </section>
 
-          {/* Lecturas */}
+          {/* Lecturas — mismos bloques que el panel HOME del HMI (Temp, Humedad, Operacion: Consumo / PIR) */}
           <div className="grid grid-cols-2 gap-2.5">
             <Lectura icono={<Thermometer className="h-[18px] w-[18px]" />} nombre="TEMPERATURA" valor={temperaturaTexto} nota={notaTemperatura} />
             <Lectura icono={<Droplets className="h-[18px] w-[18px]" />} nombre="HUMEDAD" valor={humedadTexto} nota="Relativa" />
-            <Lectura icono={<Zap className="h-[18px] w-[18px]" />} nombre="POTENCIA" valor={potenciaTexto} nota="Consumo del motor" />
+            <Lectura icono={<Zap className="h-[18px] w-[18px]" />} nombre="CONSUMO" valor={potenciaTexto} nota="Operacion · potencia del motor" />
             <Lectura
               icono={<User className="h-[18px] w-[18px]" />}
-              nombre="PRESENCIA"
-              valor={lecturaViva ? (data.movimiento ? 'Si' : 'No') : '--'}
-              nota={lecturaViva ? (data.movimiento ? 'Detectada' : 'Sin presencia') : 'Sin lectura'}
+              nombre="PIR"
+              valor={lecturaViva ? (data.movimiento ? 'PIR ON' : 'PIR OFF') : '--'}
+              nota={lecturaViva ? (data.movimiento ? 'Movimiento detectado' : 'Sin movimiento') : 'Sin lectura'}
             />
           </div>
 
