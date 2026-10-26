@@ -81,6 +81,8 @@ export interface AVCData {
   diag: {
     fallas: number
     historial: FaultRecord[]
+    cerebroOnline: boolean
+    cerebroMotion: boolean
   }
   historico: {
     [dia: string]: AVCHistoryDay
@@ -226,6 +228,8 @@ function normalizeAVCData(value: unknown, lastAcceptedVersion = 0): AVCData | nu
     diag: {
       fallas: toNumber(diag.fallas, 0),
       historial: normalizeHistorial(diag.historial),
+      cerebroOnline: optionalBool(diag.cerebroOnline, false),
+      cerebroMotion: optionalBool(diag.cerebroMotion, false),
     },
     historico: normalizeHistorico(source.historico),
   }
@@ -279,7 +283,7 @@ const demoData: AVCData = {
   sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
   conectividad: { firebaseModo: 3, wifiRadio: true },
   automatizacion: { retencionMs: 2000, alcance: 0 },
-  diag: { fallas: 0, historial: [] },
+  diag: { fallas: 0, historial: [], cerebroOnline: true, cerebroMotion: true },
   historico: {
     Lun: { potencia: [10, 25, 37, 50, 45, 30], temperatura: [20, 22, 25, 28, 26, 24], humedad: [30, 35, 40, 38, 35, 32] },
     Mar: { potencia: [15, 30, 42, 48, 40, 25], temperatura: [21, 24, 27, 29, 27, 23], humedad: [32, 38, 42, 40, 36, 33] },
@@ -322,7 +326,7 @@ const defaultData: AVCData = {
   sistema: { brillo: 80, brilloOn: true, suspension: 4, suspensionOn: true, beep: false, beepMs: 50, beepDuty: 60 },
   conectividad: { firebaseModo: 3, wifiRadio: true },
   automatizacion: { retencionMs: 2000, alcance: 0 },
-  diag: { fallas: 0, historial: [] },
+  diag: { fallas: 0, historial: [], cerebroOnline: false, cerebroMotion: false },
   historico: {},
 }
 
@@ -421,7 +425,12 @@ export function useAVCData() {
               raw.automatizacion,
               ['retencionMs', 'alcance'],
             ),
-            diag: keepAbsentKeys(prev.diag, normalizedData.diag, raw.diag, ['fallas', 'historial']),
+            diag: keepAbsentKeys(prev.diag, normalizedData.diag, raw.diag, [
+              'fallas',
+              'historial',
+              'cerebroOnline',
+              'cerebroMotion',
+            ]),
           }))
 
           if (lastHeartbeatValueRef.current !== normalizedData.heartbeat || lastHeartbeatAtRef.current === null) {

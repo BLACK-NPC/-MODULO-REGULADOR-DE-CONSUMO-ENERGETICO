@@ -5,8 +5,23 @@ Repositorio del proyecto completo del modulo regulador de consumo energetico.
 ## Estructura
 
 - `web/`: aplicacion Next.js conectada a Firebase Realtime Database.
-- `hmi/`: codigo del HMI para ESP32-S3 con LVGL y Arduino.
+- `hmi/`: codigo del HMI para ESP32-S3 con LVGL y Arduino (pantalla JC4827W543).
+- `cerebro/`: ESP32 de expansion de pines (radar GPIO 13) enlazado por UART al HMI.
 - `firebase-avc01.json`: estructura base de la RTDB para inicializar o inspeccionar Firebase.
+
+## Cerebro (segundo ESP32)
+
+El táctil del HMI usa GT911 en **SDA=8 SCL=4 INT=3 RST=38**. Si el cerebro se cablea a esos pines, el tactil muere.
+
+Enlace correcto (detalle en `cerebro/PINOUT.md`):
+
+| HMI | Cerebro |
+|-----|---------|
+| TX GPIO **11** | RX GPIO **16** |
+| RX GPIO **12** | TX GPIO **17** |
+| GND | GND |
+
+Flashea `cerebro/CEREBRO.ino` en el ESP32 de expansion y la rama actual del HMI en la pantalla.
 
 ## Web
 

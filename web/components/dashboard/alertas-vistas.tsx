@@ -129,7 +129,18 @@ function comportamiento(data: AVCData, signal: number, fresh: boolean, bad: Set<
     if (modo === 2) return { nivel: 'ok' as const, titulo: 'Enviando', detalle: 'Publica, no recibe ordenes' }
     return { nivel: 'ok' as const, titulo: 'Publicando', detalle: 'Lectura y envio activos' }
   }
-  return { nivel: 'ok' as const, titulo: 'En linea', detalle: 'El cerebro responde' }
+  if (data.diag.cerebroOnline) {
+    return {
+      nivel: 'ok' as const,
+      titulo: 'En linea',
+      detalle: data.diag.cerebroMotion ? 'Radar: presencia' : 'Enlace OK, sin presencia',
+    }
+  }
+  return {
+    nivel: 'peligro' as const,
+    titulo: 'Sin enlace',
+    detalle: 'Revisa TX/RX/GND (HMI 11/12 ↔ cerebro 16/17). No uses pines del tactil 8/4/3/38.',
+  }
 }
 
 export function AlertasVistas({

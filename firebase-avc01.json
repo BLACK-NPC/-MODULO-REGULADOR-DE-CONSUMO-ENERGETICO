@@ -20,6 +20,11 @@
       "guardarPotencia": false,
       "guardarMovimiento": false
     },
+    "diag": {
+      "fallas": 0,
+      "cerebroOnline": false,
+      "cerebroMotion": false
+    },
     "historico": {
       "Lun": {
         "dayKey": 0,

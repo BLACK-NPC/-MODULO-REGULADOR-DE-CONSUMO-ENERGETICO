@@ -63,6 +63,10 @@ function liveValue(data: AVCData, signal: number, fresh: boolean) {
   if (signal === 3) return data.wifi.conectado ? (data.wifi.ssid || 'Enlace') : 'Sin enlace'
   if (signal === 4) return data.config.sensorMovimiento ? (data.movimiento ? 'Si' : 'No') : 'Apagado'
   if (signal === 5) return 'Publicando'
+  if (signal === 6) {
+    if (!data.diag.cerebroOnline) return 'Sin enlace'
+    return data.diag.cerebroMotion ? 'Presencia' : 'Enlace OK'
+  }
   return '--'
 }
 
