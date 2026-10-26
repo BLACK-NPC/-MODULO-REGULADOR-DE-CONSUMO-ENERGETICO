@@ -41,111 +41,48 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 {
   (void)indev_driver;
 
-  // Filtro anti-fantasma (suavizado: no debe sentirse "muerto" al tocar/arrastrar):
-  // - al empezar: 2 muestras en la misma zona confirman el press
-  // - en movimiento: un salto grande aislado se ignora; el siguiente se acepta
-  // - jitter chico se suaviza; no se reporta como movimiento
+  // Respuesta al primer toque (sin esperar 2 muestras).
+  // Solo suaviza un poco el arrastre y descarta un salto enorme aislado.
   // El INT del GT911 NO se usa como candado: se consulta siempre por I2C.
   static bool touch_is_pressed = false;
   static uint32_t last_valid_touch_ms = 0;
-  static uint8_t noisy_touch_count = 0;
-  static uint8_t settle_count = 0;
   static float filtered_x = 0.0f;
   static float filtered_y = 0.0f;
-  static float candidate_x = 0.0f;
-  static float candidate_y = 0.0f;
 
-  constexpr uint8_t TOUCH_SETTLE_SAMPLES = 2;
-  // 1er salto grande se ignora; el 2º consecutivo se acepta (antes hacía falta 3).
-  constexpr uint8_t TOUCH_JUMP_CONFIRM = 2;
-  constexpr int16_t TOUCH_NOISE_JUMP_PX = 160;
-  constexpr int16_t TOUCH_IDLE_JITTER_PX = 2;
+  constexpr int16_t TOUCH_NOISE_JUMP_PX = 200;
   constexpr int16_t TOUCH_EDGE_MARGIN_PX = 1;
-  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 50;
-  constexpr float TOUCH_FILTER_ALPHA = 0.60f;
-
-  auto reset_touch_state = [&]()
-  {
-    touch_is_pressed = false;
-    last_valid_touch_ms = 0;
-    noisy_touch_count = 0;
-    settle_count = 0;
-  };
+  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 40;
+  constexpr float TOUCH_FILTER_ALPHA = 0.75f;
 
   uint32_t now = millis();
 
   if (touch_touched())
   {
-    const int16_t current_x = constrain(touch_last_x, TOUCH_EDGE_MARGIN_PX,
-                                        static_cast<int16_t>(screenWidth - 1 - TOUCH_EDGE_MARGIN_PX));
-    const int16_t current_y = constrain(touch_last_y, TOUCH_EDGE_MARGIN_PX,
-                                        static_cast<int16_t>(screenHeight - 1 - TOUCH_EDGE_MARGIN_PX));
+    const float sample_x = static_cast<float>(constrain(
+        touch_last_x, TOUCH_EDGE_MARGIN_PX,
+        static_cast<int16_t>(screenWidth - 1 - TOUCH_EDGE_MARGIN_PX)));
+    const float sample_y = static_cast<float>(constrain(
+        touch_last_y, TOUCH_EDGE_MARGIN_PX,
+        static_cast<int16_t>(screenHeight - 1 - TOUCH_EDGE_MARGIN_PX)));
 
     if (!touch_is_pressed)
     {
-      // Confirmación de press: un fantasma suelto no suele repetir la misma zona.
-      if (settle_count == 0)
-      {
-        candidate_x = static_cast<float>(current_x);
-        candidate_y = static_cast<float>(current_y);
-        settle_count = 1;
-      }
-      else
-      {
-        const int16_t dx = static_cast<int16_t>(current_x - candidate_x);
-        const int16_t dy = static_cast<int16_t>(current_y - candidate_y);
-        if (abs(dx) <= TOUCH_NOISE_JUMP_PX && abs(dy) <= TOUCH_NOISE_JUMP_PX)
-        {
-          ++settle_count;
-          candidate_x = (TOUCH_FILTER_ALPHA * current_x) + ((1.0f - TOUCH_FILTER_ALPHA) * candidate_x);
-          candidate_y = (TOUCH_FILTER_ALPHA * current_y) + ((1.0f - TOUCH_FILTER_ALPHA) * candidate_y);
-        }
-        else
-        {
-          // Salto al iniciar: reinicia candidato (probable fantasma).
-          candidate_x = static_cast<float>(current_x);
-          candidate_y = static_cast<float>(current_y);
-          settle_count = 1;
-        }
-      }
-
-      if (settle_count < TOUCH_SETTLE_SAMPLES)
-      {
-        data->state = LV_INDEV_STATE_REL;
-        return;
-      }
-
+      // Un solo toque = press inmediato.
       touch_is_pressed = true;
-      noisy_touch_count = 0;
-      filtered_x = candidate_x;
-      filtered_y = candidate_y;
+      filtered_x = sample_x;
+      filtered_y = sample_y;
     }
     else
     {
-      const int16_t delta_x = static_cast<int16_t>(current_x - filtered_x);
-      const int16_t delta_y = static_cast<int16_t>(current_y - filtered_y);
+      const int16_t delta_x = static_cast<int16_t>(sample_x - filtered_x);
+      const int16_t delta_y = static_cast<int16_t>(sample_y - filtered_y);
 
-      if (abs(delta_x) > TOUCH_NOISE_JUMP_PX || abs(delta_y) > TOUCH_NOISE_JUMP_PX)
+      if (abs(delta_x) <= TOUCH_NOISE_JUMP_PX && abs(delta_y) <= TOUCH_NOISE_JUMP_PX)
       {
-        // Salto grande aislado = fantasma; si se repite, es arrastre real.
-        ++noisy_touch_count;
-        if (noisy_touch_count >= TOUCH_JUMP_CONFIRM)
-        {
-          filtered_x = static_cast<float>(current_x);
-          filtered_y = static_cast<float>(current_y);
-          noisy_touch_count = 0;
-        }
+        filtered_x = (TOUCH_FILTER_ALPHA * sample_x) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_x);
+        filtered_y = (TOUCH_FILTER_ALPHA * sample_y) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_y);
       }
-      else if (abs(delta_x) >= TOUCH_IDLE_JITTER_PX || abs(delta_y) >= TOUCH_IDLE_JITTER_PX)
-      {
-        noisy_touch_count = 0;
-        filtered_x = (TOUCH_FILTER_ALPHA * current_x) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_x);
-        filtered_y = (TOUCH_FILTER_ALPHA * current_y) + ((1.0f - TOUCH_FILTER_ALPHA) * filtered_y);
-      }
-      else
-      {
-        noisy_touch_count = 0;
-      }
+      // Si el salto es enorme, se ignora esta muestra (posible fantasma).
     }
 
     last_valid_touch_ms = now;
@@ -155,15 +92,7 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     return;
   }
 
-  // Si estábamos confirmando un press y se cortó, era fantasma: no reportar.
-  if (!touch_is_pressed)
-  {
-    settle_count = 0;
-    data->state = LV_INDEV_STATE_REL;
-    return;
-  }
-
-  if ((now - last_valid_touch_ms) <= TOUCH_RELEASE_GRACE_MS)
+  if (touch_is_pressed && (now - last_valid_touch_ms) <= TOUCH_RELEASE_GRACE_MS)
   {
     data->state = LV_INDEV_STATE_PR;
     data->point.x = static_cast<lv_coord_t>(filtered_x + 0.5f);
@@ -171,7 +100,8 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     return;
   }
 
-  reset_touch_state();
+  touch_is_pressed = false;
+  last_valid_touch_ms = 0;
   data->state = LV_INDEV_STATE_REL;
 }
 
