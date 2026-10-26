@@ -31,6 +31,14 @@
 
 namespace
 {
+// Firebase sync es bloqueante: bombear LVGL entre operaciones para que el
+// tactil no se "muera" durante updateNode/getJSON (puede tardar cientos de ms).
+void pumpUiWhileBlocked()
+{
+    lv_timer_handler();
+    yield();
+}
+
 constexpr uint8_t DHT_PIN = 17;
 constexpr uint8_t DHT_TYPE = 11;
 constexpr uint8_t POWER_SENSOR_PIN = 5;
@@ -46,7 +54,8 @@ constexpr uint32_t UI_REFRESH_INTERVAL_MS = 250;
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 12000;
     constexpr uint32_t WIFI_SCAN_RETRY_MS = 15000;
     constexpr uint32_t FIREBASE_HEARTBEAT_INTERVAL_MS = 10000;
-constexpr uint32_t FIREBASE_HISTORY_SYNC_INTERVAL_MS = 1500;
+// Un dia de historico por ciclo; no encadenar varios updateNode seguidos.
+constexpr uint32_t FIREBASE_HISTORY_SYNC_INTERVAL_MS = 4000;
 constexpr uint32_t SENSOR_ACTIVE_HOLD_MS = 15000;
 constexpr uint32_t MOTOR_POWER_GRACE_MS = 15000;
 constexpr uint32_t FALLBACK_SECONDS_PER_DAY = 24UL * 60UL * 60UL;
@@ -82,8 +91,15 @@ constexpr char MOTOR_MODE_MANUAL_TEXT[] = "MANUAL";
 
 constexpr char DEFAULT_WIFI_SSID[] = "";
 constexpr char DEFAULT_WIFI_PASSWORD[] = "";
-constexpr char DEFAULT_FIREBASE_API_KEY[] = "AIzaSyCNNSX4rDEtx0fREDr6d-FSYHxWxrAihBU";
-constexpr char DEFAULT_FIREBASE_DATABASE_URL[] = "https://modulo-regulador-de-consumo-default-rtdb.firebaseio.com";
+// Override en build: -DAPP_FIREBASE_API_KEY=\"...\" / -DAPP_FIREBASE_DATABASE_URL=\"...\"
+#ifndef APP_FIREBASE_API_KEY
+#define APP_FIREBASE_API_KEY "AIzaSyCNNSX4rDEtx0fREDr6d-FSYHxWxrAihBU"
+#endif
+#ifndef APP_FIREBASE_DATABASE_URL
+#define APP_FIREBASE_DATABASE_URL "https://modulo-regulador-de-consumo-default-rtdb.firebaseio.com"
+#endif
+constexpr char DEFAULT_FIREBASE_API_KEY[] = APP_FIREBASE_API_KEY;
+constexpr char DEFAULT_FIREBASE_DATABASE_URL[] = APP_FIREBASE_DATABASE_URL;
 constexpr char WIFI_PREFS_NAMESPACE[] = "appwifi";
 constexpr char WIFI_PREFS_SSID_KEY[] = "ssid";
 constexpr char WIFI_PREFS_PASSWORD_KEY[] = "password";
@@ -628,6 +644,9 @@ bool acceptDhtReading(DhtFilterState &filterState,
 
 int calculateAutomaticMotorSpeed()
 {
+    // Nota: el setpoint (SP) se muestra y se sincroniza con Firebase, pero hoy
+    // el modo AUTOMATICO solo usa temperatura y humedad. No mezclar SP aqui
+    // sin definir la estrategia de control en el proyecto de grado.
     if (!sensorEnabled[APP_SENSOR_TEMPERATURE] || isnan(lastTemperatureC) ||
         !sensorEnabled[APP_SENSOR_HUMIDITY] || isnan(lastHumidityPercent))
     {
@@ -1762,8 +1781,10 @@ void pollFirebaseCommands(uint32_t now)
     FirebaseJson commands;
     if (!Firebase.RTDB.getJSON(&firebaseCommandData, FIREBASE_COMMAND_PATH, &commands))
     {
+        pumpUiWhileBlocked();
         return;
     }
+    pumpUiWhileBlocked();
 
     int64_t commandTs = 0;
     if (!readJsonTimestamp(commands, commandTs))
@@ -1835,8 +1856,10 @@ bool syncFirebaseHistoryDay(uint8_t weekdayIndex)
     String basePath = String(FIREBASE_ROOT_PATH) + "/historico/" + dayName;
     if (!Firebase.updateNode(firebaseData, basePath.c_str(), meta))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
     FirebaseJsonArray temperatureArray;
     FirebaseJsonArray humidityArray;
@@ -1847,16 +1870,22 @@ bool syncFirebaseHistoryDay(uint8_t weekdayIndex)
 
     if (!Firebase.setArray(firebaseData, (basePath + "/temperatura").c_str(), temperatureArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
     if (!Firebase.setArray(firebaseData, (basePath + "/humedad").c_str(), humidityArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
     if (!Firebase.setArray(firebaseData, (basePath + "/potencia").c_str(), powerArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
     historyDirty[weekdayIndex] = false;
     return true;
@@ -1889,13 +1918,17 @@ bool syncFirebaseLiveSnapshot(uint32_t now)
 
     if (!Firebase.updateNode(firebaseData, FIREBASE_ROOT_PATH, liveData))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
     FirebaseJson legacySensors;
     legacySensors.set("temperatura", app_runtime_has_temperature() ? static_cast<int>(lroundf(lastTemperatureC)) : 0);
     legacySensors.set("humedad", app_runtime_has_humidity() ? static_cast<int>(lroundf(lastHumidityPercent)) : 0);
-    return Firebase.updateNode(firebaseData, "/sensores", legacySensors);
+    const bool legacyOk = Firebase.updateNode(firebaseData, "/sensores", legacySensors);
+    pumpUiWhileBlocked();
+    return legacyOk;
 #else
     (void)now;
     return false;

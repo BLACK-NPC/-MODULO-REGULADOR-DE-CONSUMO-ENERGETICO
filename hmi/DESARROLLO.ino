@@ -41,9 +41,9 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 {
   (void)indev_driver;
 
-  // Filtro anti-fantasma (muestra tomada para distinguir toque real de ruido):
-  // - al empezar: pide 2 muestras cercanas antes de aceptar el press
-  // - en movimiento: ignora saltos grandes aislados; si el salto se repite, lo acepta
+  // Filtro anti-fantasma (suavizado: no debe sentirse "muerto" al tocar/arrastrar):
+  // - al empezar: 2 muestras en la misma zona confirman el press
+  // - en movimiento: un salto grande aislado se ignora; el siguiente se acepta
   // - jitter chico se suaviza; no se reporta como movimiento
   // El INT del GT911 NO se usa como candado: se consulta siempre por I2C.
   static bool touch_is_pressed = false;
@@ -56,12 +56,13 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
   static float candidate_y = 0.0f;
 
   constexpr uint8_t TOUCH_SETTLE_SAMPLES = 2;
-  constexpr uint8_t MAX_NOISY_TOUCHES = 3;
-  constexpr int16_t TOUCH_NOISE_JUMP_PX = 120;
-  constexpr int16_t TOUCH_IDLE_JITTER_PX = 3;
+  // 1er salto grande se ignora; el 2º consecutivo se acepta (antes hacía falta 3).
+  constexpr uint8_t TOUCH_JUMP_CONFIRM = 2;
+  constexpr int16_t TOUCH_NOISE_JUMP_PX = 160;
+  constexpr int16_t TOUCH_IDLE_JITTER_PX = 2;
   constexpr int16_t TOUCH_EDGE_MARGIN_PX = 1;
-  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 80;
-  constexpr float TOUCH_FILTER_ALPHA = 0.45f;
+  constexpr uint32_t TOUCH_RELEASE_GRACE_MS = 50;
+  constexpr float TOUCH_FILTER_ALPHA = 0.60f;
 
   auto reset_touch_state = [&]()
   {
@@ -126,13 +127,9 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
 
       if (abs(delta_x) > TOUCH_NOISE_JUMP_PX || abs(delta_y) > TOUCH_NOISE_JUMP_PX)
       {
-        // Salto grande aislado = fantasma; si se sostiene, es arrastre real.
-        if (noisy_touch_count < MAX_NOISY_TOUCHES)
-        {
-          ++noisy_touch_count;
-        }
-
-        if (noisy_touch_count >= MAX_NOISY_TOUCHES)
+        // Salto grande aislado = fantasma; si se repite, es arrastre real.
+        ++noisy_touch_count;
+        if (noisy_touch_count >= TOUCH_JUMP_CONFIRM)
         {
           filtered_x = static_cast<float>(current_x);
           filtered_y = static_cast<float>(current_y);
