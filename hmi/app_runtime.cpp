@@ -28,7 +28,6 @@
 
 #include "ui.h"
 #include "ui_input_overlay.h"
-#include "cerebro_link.h"
 
 namespace
 {
@@ -672,16 +671,6 @@ bool pirAllowsMotorRun()
 void updatePirRelayOutput(uint32_t now)
 {
     bool relayEnabled = sensorEnabled[APP_SENSOR_MOTION] && isActive(movementSignal, now);
-    // Si el cerebro esta en linea, el relay auxiliar vive alla (GPIO 25).
-    if (cerebro_link_online(now))
-    {
-        static bool lastCerebroRelay = false;
-        if (relayEnabled != lastCerebroRelay)
-        {
-            lastCerebroRelay = relayEnabled;
-            cerebro_link_set_relay(relayEnabled);
-        }
-    }
     digitalWrite(PIR_RELAY_PIN, relayEnabled ? HIGH : LOW);
 }
 
@@ -2115,8 +2104,6 @@ bool syncFirebaseLiveSnapshot(uint32_t now)
     liveData.set("config/guardarTemperatura", loggingEnabled[APP_SENSOR_TEMPERATURE]);
     liveData.set("config/guardarPotencia", loggingEnabled[APP_SENSOR_POWER]);
     liveData.set("config/guardarMovimiento", loggingEnabled[APP_SENSOR_MOTION]);
-    liveData.set("diag/cerebroOnline", cerebro_link_online(now));
-    liveData.set("diag/cerebroMotion", cerebro_link_online(now) && cerebro_link_motion());
 
     if (!Firebase.updateNode(firebaseData, FIREBASE_ROOT_PATH, liveData))
     {
@@ -2286,18 +2273,7 @@ void pollMotionSensor(uint32_t now)
     }
 
     lastMotionReadMs = now;
-
-    // Preferir radar del cerebro (GPIO 13 alla) cuando el enlace UART esta vivo.
-    // Si no hay cerebro, caer al PIR local del HMI (GPIO 16).
-    if (cerebro_link_online(now))
-    {
-        motionInputHigh = cerebro_link_motion();
-    }
-    else
-    {
-        motionInputHigh = digitalRead(MOTION_SENSOR_PIN) == HIGH;
-    }
-
+    motionInputHigh = digitalRead(MOTION_SENSOR_PIN) == HIGH;
     if (motionInputHigh)
     {
         markActive(movementSignal, now);
@@ -2379,8 +2355,7 @@ void pollFirebase(uint32_t now)
 
 void printStartupSummary()
 {
-    Serial.println("Alertas: GPIO 17 DHT11, GPIO 5 ZMCT103C, GPIO 16 movimiento local, GPIO 15 relay PIR.");
-    Serial.println("Cerebro: UART HMI TX=11 RX=12. Radar en cerebro GPIO13. NUNCA cables a touch 8/4/3/38.");
+    Serial.println("Alertas: GPIO 17 DHT11, GPIO 5 ZMCT103C, GPIO 16 movimiento, GPIO 15 salida relay PIR.");
     Serial.println("Config: sensores y guardado inician apagados hasta que los habilites.");
     if (!credentialsConfigured())
     {
@@ -2421,7 +2396,6 @@ void app_runtime_init()
     dht.begin();
     resetDhtFilter(temperatureFilter);
     resetDhtFilter(humidityFilter);
-    cerebro_link_init();
 
     wifiScanRequested = true;
     buildMotorInfoPanel();
@@ -2448,7 +2422,6 @@ void app_runtime_tick()
     uint32_t now = millis();
     purgeExpiredHistory(getCurrentTimeSnapshot().dayKey);
 
-    cerebro_link_tick(now);
     pollWifi(now);
     pollDht(now);
     pollPowerSensor(now);
