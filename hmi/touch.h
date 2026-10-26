@@ -4,6 +4,11 @@
  *
  * Capacitive touchscreen libraries
  * TouchLib: https://github.com/mmMicky/TouchLib.git
+ *
+ * Nota: NO forzar TOUCH_INT como OUTPUT en el reset. Con el ESP32 de expansion
+ * conectado, pelear por ese pin (GPIO3) deja el GT911 sin respuesta. Solo se
+ * pulsa RST; INT queda como entrada. La lectura es siempre por polling I2C
+ * (touch_has_signal no usa el INT como candado).
  ******************************************************************************/
 
 #define TOUCH_MODULES_GT911
@@ -69,6 +74,8 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
   }
 
 #if (TOUCH_RES > 0)
+  // Solo reset por RST. No conducir INT: el cerebro/expansion puede compartir
+  // esa linea o el pad; forzarla a OUTPUT rompia el tactil al conectar el ESP32.
   pinMode(TOUCH_RES, OUTPUT);
   digitalWrite(TOUCH_RES, 0);
   delay(200);
@@ -87,17 +94,8 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
 
 bool touch_has_signal()
 {
-  constexpr uint32_t TOUCH_ACTIVITY_HOLD_MS = 60;
-
-#if (TOUCH_INT > 0)
-  if (digitalRead(TOUCH_INT) == LOW)
-  {
-    return true;
-  }
-#endif
-
-  return touch_last_activity_ms != 0 &&
-         (millis() - touch_last_activity_ms) <= TOUCH_ACTIVITY_HOLD_MS;
+  // Siempre permitir consulta I2C. No usar INT como candado de lectura.
+  return true;
 }
 
 void translate_touch_raw()
@@ -121,8 +119,6 @@ bool touch_touched()
     TP_Point t = touch.getPoint(0);
     touch_raw_x = t.x;
     touch_raw_y = t.y;
-    touch_last_x = touch_raw_x;
-    touch_last_y = touch_raw_y;
     translate_touch_raw();
     touch_last_x = constrain(touch_last_x, 0, touch_max_x);
     touch_last_y = constrain(touch_last_y, 0, touch_max_y);

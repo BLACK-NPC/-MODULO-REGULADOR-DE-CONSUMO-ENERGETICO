@@ -65,17 +65,26 @@
       }
     },
     "comandos": {
-      "estado": "stopped",
-      "modo": "AUTOMATICO",
-      "velocidad": 0,
-      "setpoint": 22,
-      "config": {
-        "guardarHumedad": false,
-        "guardarTemperatura": false,
-        "guardarPotencia": false,
-        "guardarMovimiento": false
+      "solicitud": {
+        "reqId": "",
+        "estado": "stopped",
+        "modo": "AUTOMATICO",
+        "velocidad": 0,
+        "setpoint": 22,
+        "config": {
+          "guardarHumedad": false,
+          "guardarTemperatura": false,
+          "guardarPotencia": false,
+          "guardarMovimiento": false
+        },
+        "ts": 0
       },
-      "ts": 0
+      "respuesta": {
+        "reqId": "",
+        "ok": false,
+        "mensaje": "",
+        "ts": 0
+      }
     }
   },
   "sensores": {

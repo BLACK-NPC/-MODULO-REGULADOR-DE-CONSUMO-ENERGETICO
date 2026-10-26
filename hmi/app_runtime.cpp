@@ -31,6 +31,14 @@
 
 namespace
 {
+// Firebase sync es bloqueante: bombear LVGL entre operaciones para que el
+// tactil no se "muera" durante updateNode/getJSON (puede tardar cientos de ms).
+void pumpUiWhileBlocked()
+{
+    lv_timer_handler();
+    yield();
+}
+
 constexpr uint8_t DHT_PIN = 17;
 constexpr uint8_t DHT_TYPE = 11;
 constexpr uint8_t POWER_SENSOR_PIN = 5;
@@ -46,7 +54,8 @@ constexpr uint32_t UI_REFRESH_INTERVAL_MS = 250;
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 12000;
     constexpr uint32_t WIFI_SCAN_RETRY_MS = 15000;
     constexpr uint32_t FIREBASE_HEARTBEAT_INTERVAL_MS = 10000;
-constexpr uint32_t FIREBASE_HISTORY_SYNC_INTERVAL_MS = 1500;
+// Un dia de historico por ciclo; no encadenar varios updateNode seguidos.
+constexpr uint32_t FIREBASE_HISTORY_SYNC_INTERVAL_MS = 4000;
 constexpr uint32_t SENSOR_ACTIVE_HOLD_MS = 15000;
 constexpr uint32_t MOTOR_POWER_GRACE_MS = 15000;
 constexpr uint32_t FALLBACK_SECONDS_PER_DAY = 24UL * 60UL * 60UL;
@@ -82,17 +91,28 @@ constexpr char MOTOR_MODE_MANUAL_TEXT[] = "MANUAL";
 
 constexpr char DEFAULT_WIFI_SSID[] = "";
 constexpr char DEFAULT_WIFI_PASSWORD[] = "";
-constexpr char DEFAULT_FIREBASE_API_KEY[] = "AIzaSyCNNSX4rDEtx0fREDr6d-FSYHxWxrAihBU";
-constexpr char DEFAULT_FIREBASE_DATABASE_URL[] = "https://modulo-regulador-de-consumo-default-rtdb.firebaseio.com";
+// Override en build: -DAPP_FIREBASE_API_KEY=\"...\" / -DAPP_FIREBASE_DATABASE_URL=\"...\"
+#ifndef APP_FIREBASE_API_KEY
+#define APP_FIREBASE_API_KEY "AIzaSyCNNSX4rDEtx0fREDr6d-FSYHxWxrAihBU"
+#endif
+#ifndef APP_FIREBASE_DATABASE_URL
+#define APP_FIREBASE_DATABASE_URL "https://modulo-regulador-de-consumo-default-rtdb.firebaseio.com"
+#endif
+constexpr char DEFAULT_FIREBASE_API_KEY[] = APP_FIREBASE_API_KEY;
+constexpr char DEFAULT_FIREBASE_DATABASE_URL[] = APP_FIREBASE_DATABASE_URL;
 constexpr char WIFI_PREFS_NAMESPACE[] = "appwifi";
 constexpr char WIFI_PREFS_SSID_KEY[] = "ssid";
 constexpr char WIFI_PREFS_PASSWORD_KEY[] = "password";
 
 constexpr char FIREBASE_ROOT_PATH[] = "/avc01";
-constexpr char FIREBASE_COMMAND_PATH[] = "/avc01/comandos";
+// Protocolo PWA <-> HMI (ver web/lib/firebase-command-paths.ts):
+//   PWA escribe /avc01/comandos/solicitud {reqId, ts, campos...}
+//   HMI responde /avc01/comandos/respuesta {reqId, ok, mensaje, ts}
+constexpr char FIREBASE_COMMAND_REQUEST_PATH[] = "/avc01/comandos/solicitud";
+constexpr char FIREBASE_COMMAND_RESPONSE_PATH[] = "/avc01/comandos/respuesta";
 constexpr int WIFI_SCAN_FAILED_CODE = -2;
-constexpr uint32_t FIREBASE_COMMAND_POLL_INTERVAL_MS = 2000;
-constexpr int64_t FIREBASE_COMMAND_MAX_AGE_MS = 90000;
+constexpr uint32_t FIREBASE_COMMAND_POLL_INTERVAL_MS = 1500;
+constexpr int64_t FIREBASE_COMMAND_MAX_AGE_MS = 120000;
 constexpr const char *HISTORY_DAY_NAMES[HISTORY_DAY_COUNT] = {
     "Lun",
     "Mar",
@@ -221,6 +241,7 @@ bool wifiStarted = false;
 bool firebaseConfigured = false;
 bool wifiScanRequested = false;
 bool firebaseCommandsPrimed = false;
+char lastFirebaseCommandReqId[48] = "";
 bool historyDirty[HISTORY_DAY_COUNT] = {false, false, false, false, false, false, false};
 DhtFilterState temperatureFilter;
 DhtFilterState humidityFilter;
@@ -628,6 +649,9 @@ bool acceptDhtReading(DhtFilterState &filterState,
 
 int calculateAutomaticMotorSpeed()
 {
+    // Nota: el setpoint (SP) se muestra y se sincroniza con Firebase, pero hoy
+    // el modo AUTOMATICO solo usa temperatura y humedad. No mezclar SP aqui
+    // sin definir la estrategia de control en el proyecto de grado.
     if (!sensorEnabled[APP_SENSOR_TEMPERATURE] || isnan(lastTemperatureC) ||
         !sensorEnabled[APP_SENSOR_HUMIDITY] || isnan(lastHumidityPercent))
     {
@@ -685,8 +709,9 @@ void buildMotorInfoPanel()
     lv_obj_set_y(ui_Label11, 74);
     lv_obj_update_layout(ui_HOME);
 
-    motorConsumptionTitle = createCenteredHomeLabel("Consumo", 154, -42, &lv_font_montserrat_12);
-    motorConsumptionValue = createCenteredHomeLabel("-- W", 154, -22, &lv_font_montserrat_16);
+    // La lectura del CT se normaliza a 0-100 % (no watts calibrados).
+    motorConsumptionTitle = createCenteredHomeLabel("Potencia", 154, -42, &lv_font_montserrat_12);
+    motorConsumptionValue = createCenteredHomeLabel("-- %", 154, -22, &lv_font_montserrat_16);
     motorSeparator = createCenteredHomeLabel("_______", 154, -5, &lv_font_montserrat_12);
     motorSpeedTitle = createCenteredHomeLabel("Velocidad", 154, 13, &lv_font_montserrat_12);
     motorSpeedValue = createCenteredHomeLabel("0 %", 154, 34, &lv_font_montserrat_16);
@@ -917,11 +942,11 @@ void refreshMotorControl()
     {
         if (app_runtime_has_power())
         {
-            snprintf(buffer, sizeof(buffer), "%d W", app_runtime_get_power_percent());
+            snprintf(buffer, sizeof(buffer), "%d %%", app_runtime_get_power_percent());
         }
         else
         {
-            snprintf(buffer, sizeof(buffer), "-- W");
+            snprintf(buffer, sizeof(buffer), "-- %%");
         }
         setLabelTextIfChanged(motorConsumptionValue, buffer);
     }
@@ -1148,6 +1173,11 @@ AlertState sensorAlertState(bool enabled, const StatusSignal &signal, uint32_t n
 
 AlertState motionAlertState(uint32_t now)
 {
+    if (!sensorEnabled[APP_SENSOR_MOTION])
+    {
+        return ALERT_STATE_OFF;
+    }
+
     return isActive(movementSignal, now) ? ALERT_STATE_ON : ALERT_STATE_FAIL;
 }
 
@@ -1560,14 +1590,20 @@ bool currentUnixTimeMs(int64_t &unixTimeMs)
 
 bool firebaseCommandTimestampIsFresh(int64_t timestampMs)
 {
-    int64_t nowMs = 0;
-    if (!currentUnixTimeMs(nowMs))
+    if (timestampMs <= 0)
     {
         return false;
     }
 
+    int64_t nowMs = 0;
+    if (!currentUnixTimeMs(nowMs))
+    {
+        // Sin NTP todavia: aceptar por monotonía de ts (ya filtrado vs lastFirebaseCommandTs).
+        return true;
+    }
+
     int64_t ageMs = nowMs - timestampMs;
-    return ageMs >= -30000 && ageMs <= FIREBASE_COMMAND_MAX_AGE_MS;
+    return ageMs >= -60000 && ageMs <= FIREBASE_COMMAND_MAX_AGE_MS;
 }
 
 #if APP_RUNTIME_HAS_FIREBASE
@@ -1677,8 +1713,57 @@ bool readJsonTimestamp(FirebaseJson &json, int64_t &timestampMs)
     return false;
 }
 
-void applyRemoteFirebaseCommands(FirebaseJson &commands)
+struct RemoteCommandApplyResult
 {
+    uint8_t applied = 0;
+    uint8_t ignored = 0;
+    char mensaje[96] = "";
+};
+
+void writeFirebaseCommandResponse(const String &reqId, bool ok, const char *mensaje)
+{
+    if (reqId.length() == 0)
+    {
+        return;
+    }
+
+    FirebaseJson respuesta;
+    respuesta.set("reqId", reqId);
+    respuesta.set("ok", ok);
+    respuesta.set("mensaje", mensaje != nullptr ? mensaje : "");
+
+    int64_t nowMs = 0;
+    if (currentUnixTimeMs(nowMs))
+    {
+        respuesta.set("ts", static_cast<double>(nowMs));
+    }
+    else
+    {
+        respuesta.set("ts", static_cast<int>(millis()));
+    }
+
+    if (!Firebase.setJSON(firebaseCommandData, FIREBASE_COMMAND_RESPONSE_PATH, respuesta))
+    {
+        Serial.print("Firebase: no se pudo escribir respuesta: ");
+        Serial.println(firebaseCommandData.errorReason());
+    }
+    pumpUiWhileBlocked();
+}
+
+RemoteCommandApplyResult applyRemoteFirebaseCommands(FirebaseJson &commands)
+{
+    RemoteCommandApplyResult result;
+
+    auto markApplied = [&](const char *text)
+    {
+        ++result.applied;
+        if (result.mensaje[0] == '\0' && text != nullptr)
+        {
+            strncpy(result.mensaje, text, sizeof(result.mensaje) - 1);
+            result.mensaje[sizeof(result.mensaje) - 1] = '\0';
+        }
+    };
+
     String stateValue;
     if (readJsonString(commands, "estado", stateValue))
     {
@@ -1686,10 +1771,16 @@ void applyRemoteFirebaseCommands(FirebaseJson &commands)
         if (stateValue == "running")
         {
             setMotorRunningLocal(true);
+            markApplied("Motor encendido.");
         }
         else if (stateValue == "stopped")
         {
             setMotorRunningLocal(false);
+            markApplied("Motor apagado.");
+        }
+        else
+        {
+            ++result.ignored;
         }
     }
 
@@ -1700,10 +1791,16 @@ void applyRemoteFirebaseCommands(FirebaseJson &commands)
         if (modeValue == "manual")
         {
             setMotorModeLocal(MOTOR_MODE_MANUAL);
+            markApplied("Modo manual.");
         }
         else if (modeValue == "automatico" || modeValue == "automatic")
         {
             setMotorModeLocal(MOTOR_MODE_AUTOMATIC);
+            markApplied("Modo automatico.");
+        }
+        else
+        {
+            ++result.ignored;
         }
     }
 
@@ -1711,37 +1808,92 @@ void applyRemoteFirebaseCommands(FirebaseJson &commands)
     if (readJsonInt(commands, "velocidad", speedValue))
     {
         setManualMotorSpeedLocal(speedValue);
+        markApplied("Velocidad actualizada.");
     }
 
     int setpointValue = 0;
     if (readJsonInt(commands, "setpoint", setpointValue))
     {
-        int currentSetpoint = ui_input_overlay_get_setpoint();
-        int clampedSetpoint = constrainSetpoint(static_cast<float>(setpointValue));
+        // ui_input_overlay_set_setpoint ya limita a 18-35 C.
+        const int currentSetpoint = ui_input_overlay_get_setpoint();
+        ui_input_overlay_set_setpoint(setpointValue);
+        const int clampedSetpoint = ui_input_overlay_get_setpoint();
         if (currentSetpoint != clampedSetpoint)
         {
-            ui_input_overlay_set_setpoint(clampedSetpoint);
             refreshHomeScreen();
         }
+        markApplied("Setpoint actualizado.");
     }
 
     bool loggingValue = false;
-    if (readJsonBool(commands, "config/guardarTemperatura", loggingValue) && loggingEnabled[APP_SENSOR_TEMPERATURE] != loggingValue)
+    if (readJsonBool(commands, "config/guardarTemperatura", loggingValue))
     {
-        app_runtime_set_logging_enabled(APP_SENSOR_TEMPERATURE, loggingValue);
+        if (loggingEnabled[APP_SENSOR_TEMPERATURE] != loggingValue)
+        {
+            app_runtime_set_logging_enabled(APP_SENSOR_TEMPERATURE, loggingValue);
+        }
+        markApplied("Config de registro actualizada.");
     }
-    if (readJsonBool(commands, "config/guardarHumedad", loggingValue) && loggingEnabled[APP_SENSOR_HUMIDITY] != loggingValue)
+    if (readJsonBool(commands, "config/guardarHumedad", loggingValue))
     {
-        app_runtime_set_logging_enabled(APP_SENSOR_HUMIDITY, loggingValue);
+        if (loggingEnabled[APP_SENSOR_HUMIDITY] != loggingValue)
+        {
+            app_runtime_set_logging_enabled(APP_SENSOR_HUMIDITY, loggingValue);
+        }
+        markApplied("Config de registro actualizada.");
     }
-    if (readJsonBool(commands, "config/guardarPotencia", loggingValue) && loggingEnabled[APP_SENSOR_POWER] != loggingValue)
+    if (readJsonBool(commands, "config/guardarPotencia", loggingValue))
     {
-        app_runtime_set_logging_enabled(APP_SENSOR_POWER, loggingValue);
+        if (loggingEnabled[APP_SENSOR_POWER] != loggingValue)
+        {
+            app_runtime_set_logging_enabled(APP_SENSOR_POWER, loggingValue);
+        }
+        markApplied("Config de registro actualizada.");
     }
-    if (readJsonBool(commands, "config/guardarMovimiento", loggingValue) && loggingEnabled[APP_SENSOR_MOTION] != loggingValue)
+    if (readJsonBool(commands, "config/guardarMovimiento", loggingValue))
     {
-        app_runtime_set_logging_enabled(APP_SENSOR_MOTION, loggingValue);
+        if (loggingEnabled[APP_SENSOR_MOTION] != loggingValue)
+        {
+            app_runtime_set_logging_enabled(APP_SENSOR_MOTION, loggingValue);
+        }
+        markApplied("Config de registro actualizada.");
     }
+
+    // Campos que la PWA puede enviar pero el HMI aun no ejecuta localmente.
+    FirebaseJsonData probe;
+    commands.get(probe, "sistema");
+    if (probe.success && probe.type != "null")
+    {
+        ++result.ignored;
+    }
+    commands.get(probe, "conectividad");
+    if (probe.success && probe.type != "null")
+    {
+        ++result.ignored;
+    }
+    commands.get(probe, "automatizacion");
+    if (probe.success && probe.type != "null")
+    {
+        ++result.ignored;
+    }
+
+    if (result.applied == 0 && result.ignored > 0)
+    {
+        strncpy(result.mensaje,
+                "Comando recibido, pero este HMI aun no aplica ese campo.",
+                sizeof(result.mensaje) - 1);
+    }
+    else if (result.applied == 0)
+    {
+        strncpy(result.mensaje, "Solicitud sin campos aplicables.", sizeof(result.mensaje) - 1);
+    }
+    else if (result.ignored > 0 && result.mensaje[0] != '\0')
+    {
+        // Mantener el mensaje del primer campo aplicado; anotar parcialidad en Serial.
+        Serial.println("Firebase: comando parcial (hay campos no soportados).");
+    }
+
+    return result;
 }
 
 void pollFirebaseCommands(uint32_t now)
@@ -1752,42 +1904,101 @@ void pollFirebaseCommands(uint32_t now)
     }
     lastFirebaseCommandPollMs = now;
 
-    FirebaseJson commands;
-    if (!Firebase.RTDB.getJSON(&firebaseCommandData, FIREBASE_COMMAND_PATH, &commands))
+    FirebaseJson solicitud;
+    if (!Firebase.RTDB.getJSON(&firebaseCommandData, FIREBASE_COMMAND_REQUEST_PATH, &solicitud))
     {
+        pumpUiWhileBlocked();
         return;
     }
+    pumpUiWhileBlocked();
+
+    String reqId;
+    const bool hasReqId = readJsonString(solicitud, "reqId", reqId);
 
     int64_t commandTs = 0;
-    if (!readJsonTimestamp(commands, commandTs))
+    if (!readJsonTimestamp(solicitud, commandTs))
     {
-        return;
+        // Sin ts no hay forma segura de deduplicar; si hay reqId nuevo, igual se intenta.
+        if (!hasReqId)
+        {
+            return;
+        }
     }
 
-    if (commandTs <= lastFirebaseCommandTs)
+    if (commandTs > 0 && commandTs <= lastFirebaseCommandTs)
+    {
+        if (!hasReqId || strcmp(lastFirebaseCommandReqId, reqId.c_str()) == 0)
+        {
+            firebaseCommandsPrimed = true;
+            return;
+        }
+    }
+
+    if (hasReqId && strcmp(lastFirebaseCommandReqId, reqId.c_str()) == 0 &&
+        commandTs > 0 && commandTs <= lastFirebaseCommandTs)
     {
         firebaseCommandsPrimed = true;
         return;
     }
 
-    bool isFresh = firebaseCommandTimestampIsFresh(commandTs);
-    lastFirebaseCommandTs = commandTs;
+    const bool isFresh = (commandTs == 0) ? hasReqId : firebaseCommandTimestampIsFresh(commandTs);
 
     if (!firebaseCommandsPrimed)
     {
         firebaseCommandsPrimed = true;
+        if (commandTs > 0)
+        {
+            lastFirebaseCommandTs = commandTs;
+        }
+        if (hasReqId)
+        {
+            strncpy(lastFirebaseCommandReqId, reqId.c_str(), sizeof(lastFirebaseCommandReqId) - 1);
+            lastFirebaseCommandReqId[sizeof(lastFirebaseCommandReqId) - 1] = '\0';
+        }
+        // Al arrancar no re-ejecutar solicitudes viejas; solo marcarlas vistas.
         if (!isFresh)
         {
+            Serial.println("Firebase: solicitud antigua ignorada en el arranque.");
             return;
         }
     }
 
     if (!isFresh)
     {
+        if (commandTs > lastFirebaseCommandTs)
+        {
+            lastFirebaseCommandTs = commandTs;
+        }
+        if (hasReqId)
+        {
+            writeFirebaseCommandResponse(reqId, false, "Comando expirado o con reloj desfasado.");
+        }
         return;
     }
 
-    applyRemoteFirebaseCommands(commands);
+    if (commandTs > lastFirebaseCommandTs)
+    {
+        lastFirebaseCommandTs = commandTs;
+    }
+    if (hasReqId)
+    {
+        strncpy(lastFirebaseCommandReqId, reqId.c_str(), sizeof(lastFirebaseCommandReqId) - 1);
+        lastFirebaseCommandReqId[sizeof(lastFirebaseCommandReqId) - 1] = '\0';
+    }
+
+    const RemoteCommandApplyResult applied = applyRemoteFirebaseCommands(solicitud);
+    const bool ok = applied.applied > 0;
+    const char *mensaje = applied.mensaje[0] != '\0'
+                              ? applied.mensaje
+                              : (ok ? "Comando ejecutado." : "Sin cambios.");
+
+    Serial.printf("Firebase: solicitud aplicada applied=%u ignored=%u ok=%d\n",
+                  applied.applied, applied.ignored, ok ? 1 : 0);
+
+    if (hasReqId)
+    {
+        writeFirebaseCommandResponse(reqId, ok, mensaje);
+    }
 }
 
 bool appendHistoryArray(FirebaseJsonArray &jsonArray, const HourlyMetric *metrics)
@@ -1828,8 +2039,10 @@ bool syncFirebaseHistoryDay(uint8_t weekdayIndex)
     String basePath = String(FIREBASE_ROOT_PATH) + "/historico/" + dayName;
     if (!Firebase.updateNode(firebaseData, basePath.c_str(), meta))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
     FirebaseJsonArray temperatureArray;
     FirebaseJsonArray humidityArray;
@@ -1840,16 +2053,22 @@ bool syncFirebaseHistoryDay(uint8_t weekdayIndex)
 
     if (!Firebase.setArray(firebaseData, (basePath + "/temperatura").c_str(), temperatureArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
     if (!Firebase.setArray(firebaseData, (basePath + "/humedad").c_str(), humidityArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
     if (!Firebase.setArray(firebaseData, (basePath + "/potencia").c_str(), powerArray))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
     historyDirty[weekdayIndex] = false;
     return true;
@@ -1864,6 +2083,12 @@ bool syncFirebaseLiveSnapshot(uint32_t now)
 #if APP_RUNTIME_HAS_FIREBASE
     FirebaseJson liveData;
     liveData.set("heartbeat", static_cast<int>(now / 1000));
+    int64_t wallClockMs = 0;
+    if (currentUnixTimeMs(wallClockMs))
+    {
+        liveData.set("timestamp", static_cast<double>(wallClockMs));
+    }
+    liveData.set("version", "hmi-depuracion");
     liveData.set("temperatura", app_runtime_has_temperature() ? lastTemperatureC : 0.0f);
     liveData.set("humedad", app_runtime_has_humidity() ? lastHumidityPercent : 0.0f);
     liveData.set("potencia", app_runtime_has_power() ? app_runtime_get_power_percent() : 0);
@@ -1882,13 +2107,22 @@ bool syncFirebaseLiveSnapshot(uint32_t now)
 
     if (!Firebase.updateNode(firebaseData, FIREBASE_ROOT_PATH, liveData))
     {
+        pumpUiWhileBlocked();
         return false;
     }
+    pumpUiWhileBlocked();
 
+    // Legacy /sensores: best-effort; no debe tumbar el heartbeat de /avc01.
     FirebaseJson legacySensors;
     legacySensors.set("temperatura", app_runtime_has_temperature() ? static_cast<int>(lroundf(lastTemperatureC)) : 0);
     legacySensors.set("humedad", app_runtime_has_humidity() ? static_cast<int>(lroundf(lastHumidityPercent)) : 0);
-    return Firebase.updateNode(firebaseData, "/sensores", legacySensors);
+    if (!Firebase.updateNode(firebaseData, "/sensores", legacySensors))
+    {
+        Serial.print("Firebase: legacy /sensores fallo: ");
+        Serial.println(firebaseData.errorReason());
+    }
+    pumpUiWhileBlocked();
+    return true;
 #else
     (void)now;
     return false;
@@ -2054,6 +2288,7 @@ void pollFirebase(uint32_t now)
     {
         firebaseCommandsPrimed = false;
         lastFirebaseCommandTs = 0;
+        lastFirebaseCommandReqId[0] = '\0';
         return;
     }
 
@@ -2164,8 +2399,14 @@ void app_runtime_init()
 
     wifiScanRequested = true;
     buildMotorInfoPanel();
+    if (ui_Label7 != nullptr)
+    {
+        lv_label_set_text(ui_Label7, "START");
+    }
     lv_dropdown_set_options(ui_Dropdown1, "AUTOMATICO\nMANUAL");
     lv_dropdown_set_selected(ui_Dropdown1, 0);
+    // Quita el stub SquareLine (dropdown_navegacion) para que solo mande el modo motor.
+    lv_obj_remove_event_cb(ui_Dropdown1, ui_event_Dropdown1);
     lv_obj_add_event_cb(ui_Button2, motorStartEvent, LV_EVENT_ALL, nullptr);
     lv_obj_add_event_cb(ui_Button1, motorStopEvent, LV_EVENT_ALL, nullptr);
     lv_obj_add_event_cb(ui_Dropdown1, motorModeChangedEvent, LV_EVENT_ALL, nullptr);
@@ -2246,16 +2487,18 @@ bool app_runtime_is_logging_enabled(AppSensorChannel channel)
 
 lv_obj_t *loggingSwitchForChannel(AppSensorChannel channel)
 {
+    // Debe apuntar a los switches de GUARDAR (1-4), no a los maestros (5-8).
+    // Ver configureConfigBindings() en ui_app_logic.cpp.
     switch (channel)
     {
     case APP_SENSOR_HUMIDITY:
-        return ui_Switch5;
+        return ui_Switch1;
     case APP_SENSOR_TEMPERATURE:
-        return ui_Switch6;
+        return ui_Switch2;
     case APP_SENSOR_POWER:
-        return ui_Switch7;
+        return ui_Switch3;
     case APP_SENSOR_MOTION:
-        return ui_Switch8;
+        return ui_Switch4;
     default:
         return nullptr;
     }
@@ -2310,6 +2553,7 @@ void app_runtime_set_firebase_enabled(bool enabled)
         firebaseConfigured = false;
         firebaseCommandsPrimed = false;
         lastFirebaseCommandTs = 0;
+        lastFirebaseCommandReqId[0] = '\0';
         clearSignal(firebaseSignal);
     }
     else

@@ -80,11 +80,9 @@ void ui_event_Keyboard2(lv_event_t * e)
 
 void ui_event_Dropdown1(lv_event_t * e)
 {
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_VALUE_CHANGED) {
-        dropdown_navegacion(e);
-    }
+    // Dejado por SquareLine; app_runtime_init() lo desregistra y usa
+    // motorModeChangedEvent como unico manejador del dropdown de modo.
+    (void)e;
 }
 
 // build funtions
@@ -243,7 +241,7 @@ void ui_HOME_screen_init(void)
     lv_obj_set_x(ui_Label7, -165);
     lv_obj_set_y(ui_Label7, 95);
     lv_obj_set_align(ui_Label7, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label7, "STAR");
+    lv_label_set_text(ui_Label7, "START");
 
     ui_Label8 = lv_label_create(ui_HOME);
     lv_obj_set_width(ui_Label8, LV_SIZE_CONTENT);   /// 1
